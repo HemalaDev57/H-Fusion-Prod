@@ -56,6 +56,7 @@ pipeline {
                 )    
                 echo 'Deploying...'
                 sleep 2
+                exit 1
             }
         }
         stage('Registering build artifact - 1') {
