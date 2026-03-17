@@ -25,11 +25,11 @@ pipeline {
                     echo 'Registering the metadata'
                     echo 'Another echo to make the pipeline a bit more complex'
                     def artifactOutput = registerBuildArtifactMetadata(
-                        name: "h-e2e-prod-v4",
+                        name: "h-e2e-prod-v5",
                         version: "1.0.1",
                         type: "docker",
-                        url: "docker.io/hemaladev57/h-e2e-prod-v4:1.0.1",
-                        digest: "1122334455667070393461636632373839379",
+                        url: "docker.io/hemaladev57/h-e2e-prod-v5:1.0.1",
+                        digest: "11223344556677870393461636632373839379",
                         label: "preprod"
                     )
                     echo "Artifact output is: ${artifactOutput}"
@@ -50,7 +50,7 @@ pipeline {
                 echo "Artifact ID : ${env.ARTIFACT_ID}"
                 registerDeployedArtifactMetadata(
                     id: "${env.ARTIFACT_ID}",
-                    url: "docker.io/hemaladev57/h-e2e-prod-v4:1.0.1",
+                    url: "docker.io/hemaladev57/h-e2e-prod-v5:1.0.1",
                     targetEnvironment: "preprod",
                     labels: "prod"
                 )    
@@ -64,11 +64,11 @@ pipeline {
                     echo 'Registering the metadata'
                     echo 'Another echo to make the pipeline a bit more complex'
                     def artifactOutput1 = registerBuildArtifactMetadata(
-                        name: "h-e2e-prod-v4-1",
+                        name: "h-e2e-prod-v5-1",
                         version: "1.0.1",
                         type: "docker",
-                        url: "docker.io/hemaladev57/h-e2e-prod-v4-1:1.0.1",
-                        digest: "1122335544667070393461636632373832388",
+                        url: "docker.io/hemaladev57/h-e2e-prod-v5-1:1.0.1",
+                        digest: "11223355446677870393461636632373832388",
                         label: "prod"
                     )
                     echo "Artifact output is: ${artifactOutput1}"
@@ -89,7 +89,7 @@ pipeline {
                 echo "Artifact ID : ${env.ARTIFACT_ID}"
                 registerDeployedArtifactMetadata(
                     id: "${env.ARTIFACT_ID}",
-                    url: "docker.io/hemaladev57/h-e2e-prod-v4-1:1.0.1",
+                    url: "docker.io/hemaladev57/h-e2e-prod-v5-1:1.0.1",
                     targetEnvironment: "production",
                     labels: "prod"
                 )    
