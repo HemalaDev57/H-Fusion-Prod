@@ -1,0 +1,22 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: My workflow
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+jobs:
+  deploy:
+    steps:
+      - name: Say hello
+        run: |
+          echo "hello world"
+        uses: docker://golang:1.20.3-alpine3.17
+        shell: sh
+      - name: deploy
+        kind: deploy
+        with:
+          artifact-id: ec0d4239-3679-4661-b11f-7633b86bd5a4
+          target-environment: PREPROD
+        uses: cloudbees-io/register-deployed-artifact@v2
