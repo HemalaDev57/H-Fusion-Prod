@@ -27,6 +27,6 @@ jobs:
           uses: docker://public.ecr.aws/cloudbees/actions/gha-register-deployed-artifact:main-8d819ee6c37734d240bc3e399c7515d85aa14f76
           id: register-deployed-artifact
           env:
-            TARGET_ENVIRONMENT: "Production"
+            TARGET_ENVIRONMENT: "production"
             ARTIFACT_ID: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
             DEPLOYMENT_LABELS: "test"                          
