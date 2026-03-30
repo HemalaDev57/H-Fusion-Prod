@@ -1,32 +1,34 @@
-name: register-artifact-from-github
-on:
-  push
-jobs:
-  register-artifact:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-      - name: Build
-        run: |
-          sleep 10
-      - name: Register build artifact
-        id: register-build-artifact
-        uses: cloudbees-io-gha/register-build-artifact@v3
-        with:
-          name: h-artifact-gha-bb
-          url: "https://example.com/h-artifact-gha/1.0.0"
-          version: 1.0.0
-      - name: Print artifact id
-        run: |
-          echo '${{ steps.register-build-artifact.outputs.cbp_artifact_id }}'
-      - name: Register deployed artifact
-        uses: docker://public.ecr.aws/cloudbees/actions/gha-register-deployed-artifact:main-21ff62f64e2c10767908b65f11a496c4f9a78891
-        id: register-deployed-artifact
-        with:
-          artifact-id: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
-          target-environment: Production
-          labels: test
+name: register-artifact-from-github                                                                                                                                                                                                               
+on:                                                                                                                                                                                                                                               
+    push                                                                                                                                                                                                                                            
+jobs:                                                                                                                                                                                                                                             
+    register-artifact:                                                                                                                                                                                                                              
+      runs-on: ubuntu-latest
+      permissions:                                                                                                                                                                                                                                  
+        id-token: write                                                                                                                                                                                                                             
+        contents: read                                                                                                                                                                                                                              
+      steps:                                                                                                                                                                                                                                        
+        - name: Checkout code                                                                                                                                                                                                                       
+          uses: actions/checkout@v6                                                                                                                                                                                                                 
+        - name: Build                                                                                                                                                                                                                               
+          run: |                                                                                                                                                                                                                                    
+            sleep 10                                                                                                                                                                                                                                
+        - name: Register build artifact                                                                                                                                                                                                             
+          id: register-build-artifact                                                                                                                                                                                                               
+          uses: cloudbees-io-gha/register-build-artifact@v3                                                                                                                                                                                         
+          with:                                                                                                                                                                                                                                     
+            cloudbees-url: "https://api.saas-preprod.beescloud.com"                                                                                                                                                                                 
+            name: h-artifact-gha-bb                                                                                                                                                                                                                 
+            url: "https://example.com/h-artifact-gha/1.0.0"                                                                                                                                                                                         
+            version: 1.0.0                                                                                                                                                                                                                          
+        - name: Print artifact id                                                                                                                                                                                                                   
+          run: |                                                                                                                                                                                                                                    
+            echo '${{ steps.register-build-artifact.outputs.cbp_artifact_id }}'                                                                                                                                                                     
+        - name: Register deployed artifact
+          uses: docker://public.ecr.aws/cloudbees/actions/gha-register-deployed-artifact:main-8d819ee6c37734d240bc3e399c7515d85aa14f76
+          id: register-deployed-artifact
+          env:
+            CLOUDBEES_API_URL: "https://api.saas-preprod.beescloud.com"
+            TARGET_ENVIRONMENT: "Production"
+            ARTIFACT_ID: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
+            DEPLOYMENT_LABELS: "test"                          
