@@ -18,7 +18,7 @@ jobs:
           uses: cloudbees-io-gha/register-build-artifact@v3                                                                                                                                                                                         
           with:                                                                                                                                                                                                                                                                                                                                                                                                                 
             name: h-artifact-gha-bb                                                                                                                                                                                                                 
-            url: "https://example.com/h-artifact-gha/1.0.0"                                                                                                                                                                                         
+            url: "https://h-test.com/h-artifact-gha/1.0.0"                                                                                                                                                                                         
             version: 1.0.0                                                                                                                                                                                                                          
         - name: Print artifact id                                                                                                                                                                                                                   
           run: |                                                                                                                                                                                                                                    
@@ -27,6 +27,6 @@ jobs:
           uses: docker://public.ecr.aws/cloudbees/actions/gha-register-deployed-artifact:main-8d819ee6c37734d240bc3e399c7515d85aa14f76
           id: register-deployed-artifact
           env:
-            TARGET_ENVIRONMENT: "production"
+            TARGET_ENVIRONMENT: "test1"
             ARTIFACT_ID: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
             DEPLOYMENT_LABELS: "test"                          
