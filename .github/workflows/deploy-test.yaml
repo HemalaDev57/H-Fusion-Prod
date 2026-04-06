@@ -28,5 +28,5 @@ jobs:
           id: register-deployed-artifact
           env:
             TARGET_ENVIRONMENT: "test1"
-            artifact-id: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
-            labels: "test"                          
+            ARTIFACT_ID: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
+            DEPLOYMENT_LABELS: "test"                          
