@@ -26,7 +26,7 @@ jobs:
         - name: Register deployed artifact
           uses: cloudbees-io-gha/register-deployed-artifact@v0
           id: register-deployed-artifact
-          env:
-            TARGET_ENVIRONMENT: "test1"
-            ARTIFACT_ID: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
-            DEPLOYMENT_LABELS: "test"                          
+          with:
+            target-environment: "test1"
+            artifact-id: ${{ steps.register-build-artifact.outputs.cbp_artifact_id }}
+            labels: "test"                          
