@@ -24,7 +24,7 @@ jobs:
           run: |                                                                                                                                                                                                                                    
             echo '${{ steps.register-build-artifact.outputs.cbp_artifact_id }}'                                                                                                                                                                     
         - name: Register deployed artifact
-          uses: docker://public.ecr.aws/cloudbees/actions/gha-register-deployed-artifact:main-8d819ee6c37734d240bc3e399c7515d85aa14f76
+          uses: cloudbees-io-gha/register-deployed-artifact@v1
           id: register-deployed-artifact
           env:
             CLOUDBEES_API_URL: "https://api.cloudbees.io"
