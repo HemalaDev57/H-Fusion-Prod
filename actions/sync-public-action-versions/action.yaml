@@ -108,7 +108,7 @@ runs:
           # If no exception found, use standard naming patterns
           if [ -z "$PUBLIC_REPO" ]; then
             # For GHA actions: gha-* -> cloudbees-io-gha/*
-            # For CBP actions: *-actions -> cloudbees-io/*
+            # For CBP actions: *-actions -> HemalaDev57/*
             if echo "$ACTION_NAME" | grep -q "^gha-"; then
               # GHA actions: gha-register-deployed-artifact -> register-deployed-artifact
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/^gha-//')
@@ -116,7 +116,7 @@ runs:
             else
               # CBP actions: github-actions -> github
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
-              PUBLIC_REPO="cloudbees-io/$PUBLIC_REPO_NAME"
+              PUBLIC_REPO="HemalaDev57/$PUBLIC_REPO_NAME"
             fi
           fi
 
