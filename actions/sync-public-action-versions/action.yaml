@@ -23,6 +23,7 @@ runs:
     - name: Sync image versions in public repositories
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
       run: |
+        #!/bin/bash
         set -e
 
         echo "🔄 Obtaining GitHub App Installation token..."
