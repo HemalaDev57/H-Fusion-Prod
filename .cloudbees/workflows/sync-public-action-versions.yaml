@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   sync-action-versions:
-    if: ${{ cloudbees.scm.branch == 'main' }}
+    if: ${{ cloudbees.scm.branch == 'master' }}
     steps:
       - name: Checkout
         uses: cloudbees-io/checkout@v2
