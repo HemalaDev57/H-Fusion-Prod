@@ -40,7 +40,20 @@ runs:
         # Detect which actions changed
         echo "🔍 Detecting which actions changed..."
         CURRENT_JSON=$(cat "$ARTIFACTS_JSON")
+
+        # Validate current JSON
+        if ! echo "$CURRENT_JSON" | jq empty 2>/dev/null; then
+          echo "❌ ERROR: $ARTIFACTS_JSON contains invalid JSON"
+          exit 1
+        fi
+
         PREVIOUS_JSON=$(git show HEAD~1:"$ARTIFACTS_JSON" 2>/dev/null || echo "{}")
+
+        # Validate previous JSON if not empty
+        if [ "$PREVIOUS_JSON" != "{}" ] && ! echo "$PREVIOUS_JSON" | jq empty 2>/dev/null; then
+          echo "⚠️  WARNING: Previous version of $ARTIFACTS_JSON contains invalid JSON, treating as empty"
+          PREVIOUS_JSON="{}"
+        fi
 
         CHANGED_ACTIONS=""
         ACTION_NAMES=$(echo "$CURRENT_JSON" | jq -r '.public.actions | keys[]')
@@ -216,9 +229,9 @@ runs:
           # Get previous version from git history (main branch)
           PREVIOUS_VERSION=""
           echo "🔄 Extracting previous version from main branch..."
-          PREV_VERSION_CONTENT=$(git show origin/main:versioning/action_artifacts.json 2>/dev/null || echo "")
+          PREV_VERSION_CONTENT=$(git show origin/main:versioning/action_artifacts.json 2>/dev/null || echo "{}")
 
-          if [ -n "$PREV_VERSION_CONTENT" ]; then
+          if [ -n "$PREV_VERSION_CONTENT" ] && echo "$PREV_VERSION_CONTENT" | jq empty 2>/dev/null; then
             PREVIOUS_VERSION=$(echo "$PREV_VERSION_CONTENT" | jq -r ".public.actions[\"$ACTION_NAME\"] // empty" 2>/dev/null || echo "")
           fi
 
