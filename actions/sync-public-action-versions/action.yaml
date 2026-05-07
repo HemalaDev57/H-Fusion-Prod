@@ -54,8 +54,7 @@ runs:
             if [ -z "$CHANGED_ACTIONS" ]; then
               CHANGED_ACTIONS="$ACTION_NAME"
             else
-              CHANGED_ACTIONS="$CHANGED_ACTIONS
-$ACTION_NAME"
+              CHANGED_ACTIONS="${CHANGED_ACTIONS} ${ACTION_NAME}"
             fi
           fi
         done
@@ -65,7 +64,7 @@ $ACTION_NAME"
           exit 0
         fi
 
-        CHANGED_COUNT=$(echo "$CHANGED_ACTIONS" | wc -l)
+        CHANGED_COUNT=$(echo "$CHANGED_ACTIONS" | wc -w)
         echo ""
         echo "✅ Found $CHANGED_COUNT changed action(s)"
         echo ""
