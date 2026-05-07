@@ -34,5 +34,5 @@ jobs:
         uses: ./actions/sync-public-action-versions
         with:
           app-id: ${{ vars.platform_helmfiles_app_id }}
-          installation-id: ${{ vars.platform_helmfiles_installation_id }}
+          installation-id: ${{ vars.h_installation_id }}
           private-key-b64: ${{ secrets.platform_helmfiles_gh_app_key_b64 }}
