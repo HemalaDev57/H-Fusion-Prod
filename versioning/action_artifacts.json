@@ -1,7 +1,9 @@
 {
   "public": {
     "actions": {
-      "test-action": "1.0.1"
+      "test-action": "main-1a73e70a7a28ddd30cd7eaf62cc62f9bbae3f354",
+      "test-action-1": "main-1b73e70a7a28ddd30cd7eaf62cc62f9bbae3f354",
+      "test-action-2": "main-1c73e70a7a28ddd30cd7eaf62cc62f9bbae3f354"
     }
   }
 }
