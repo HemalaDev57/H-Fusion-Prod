@@ -1,7 +1,7 @@
 {
   "public": {
     "actions": {
-      "test-action": "1.0.0"
+      "test-action": "1.0.1"
     }
   }
 }
