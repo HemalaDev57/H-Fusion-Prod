@@ -1,0 +1,38 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: Sync Public Action Versions Preprod
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  scm-token-own: read
+
+jobs:
+  sync-action-versions:
+    if: ${{ cloudbees.scm.branch == 'master' }}
+    steps:
+      - name: Checkout
+        uses: cloudbees-io/checkout@v2
+        with:
+          fetch-depth: 2
+
+      - name: Check if action_artifacts.json changed
+        id: check-changes
+        uses: docker://alpine/git:latest
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q "versioning/action_artifacts.json"; then
+            echo -n "true" > $CLOUDBEES_OUTPUTS/result
+          else
+            echo -n "false" > $CLOUDBEES_OUTPUTS/result
+          fi
+
+      - name: Sync action versions to public repos
+        if: ${{ steps.check-changes.outputs.result == 'true' }}
+        uses: ./actions/sync-public-action-versions
+        with:
+          app-id: ${{ vars.h_app_id }}
+          installation-id: ${{ vars.h_installation_id }}
+          private-key-b64: ${{ secrets.h_private_key }}
