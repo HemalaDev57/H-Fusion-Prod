@@ -571,18 +571,18 @@ runs:
 
         # Initialize evidence report with proper formatting
         cat > "$EVIDENCE_FILE" << EVIDENCE_HEADER
-## Sync Public Action Versions - Evidence Report
+        ## Sync Public Action Versions - Evidence Report
 
-**Generated:** $GENERATED_TIME
-**Workflow Run:** $CLOUDBEES_RUN_ID
-**Commit:** $CLOUDBEES_COMMIT_SHA
-**Branch:** $CLOUDBEES_BRANCH
+        **Generated:** $GENERATED_TIME
+        **Workflow Run:** $CLOUDBEES_RUN_ID
+        **Commit:** $CLOUDBEES_COMMIT_SHA
+        **Branch:** $CLOUDBEES_BRANCH
 
-### Actions Changed
+        ### Actions Changed
 
-| Action Name | Old Version | New Version | PR Created | Status |
-|-------------|-------------|-------------|------------|--------|
-EVIDENCE_HEADER
+        | Action Name | Old Version | New Version | PR Created | Status |
+        |-------------|-------------|-------------|------------|--------|
+        EVIDENCE_HEADER
 
         # Count statistics
         SUCCESS_COUNT=0
@@ -633,25 +633,25 @@ EVIDENCE_HEADER
         # Add summary section
         cat >> "$EVIDENCE_FILE" << EVIDENCE_FOOTER
 
----
+        ---
 
-### Summary Statistics
+        ### Summary Statistics
 
-- **Total Actions Changed:** $CHANGED_COUNT
-- **Successful PR Creations:** $SUCCESS_COUNT
-- **Errors/Warnings:** $ERROR_COUNT
+        - **Total Actions Changed:** $CHANGED_COUNT
+        - **Successful PR Creations:** $SUCCESS_COUNT
+        - **Errors/Warnings:** $ERROR_COUNT
 
-### Next Steps
+        ### Next Steps
 
-1. ✅ Review all draft PRs in their respective repositories
-2. ⏳ Wait for Docker images to be available in public registry
-3. 📋 Monitor Jira tickets for SRE team actions
-4. 🏷️ Verify release tags are created after PR merges
+        1. ✅ Review all draft PRs in their respective repositories
+        2. ⏳ Wait for Docker images to be available in public registry
+        3. 📋 Monitor Jira tickets for SRE team actions
+        4. 🏷️ Verify release tags are created after PR merges
 
----
+        ---
 
-**Repository:** calculi-corp/platform-helmfiles
-EVIDENCE_FOOTER
+        **Repository:** calculi-corp/platform-helmfiles
+        EVIDENCE_FOOTER
 
         # Output evidence to CloudBees output
         if [ -f "$EVIDENCE_FILE" ]; then
