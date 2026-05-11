@@ -228,8 +228,8 @@ runs:
           CURRENT_FILE_SHA=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.sha')
           CURRENT_CONTENT=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.content' | base64 -d)
 
-          # Extract current image version (handle both docker:// and Dockerfile patterns)
-          CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*image:' | head -1 | sed -E 's/^\s*image:\s*//' | tr -d '"' | tr -d "'")
+          # Extract current image version (handle both image: and uses: with docker:// patterns)
+          CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
           echo "📸 Current image: $CURRENT_IMAGE"
 
           # Determine the new image path
@@ -275,8 +275,8 @@ runs:
             echo "✅ Branch $BRANCH updated to match $DEFAULT_BRANCH"
           fi
 
-          # Update the image in action file
-          NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed -E "s|image:.*$REGISTRY_PATH:[^[:space:]]*|image: $NEW_IMAGE|")
+          # Update the image in action file (handle both image: and uses: patterns)
+          NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed -E "s|(image|uses):.*$REGISTRY_PATH:[^[:space:]]*|\1: $NEW_IMAGE|")
           ENCODED_CONTENT=$(echo "$NEW_CONTENT" | base64 -w 0)
 
           # Commit the change
