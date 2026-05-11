@@ -567,15 +567,16 @@ runs:
         CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
         CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
         CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
+        GENERATED_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
 
         # Initialize evidence report with proper formatting
         cat > "$EVIDENCE_FILE" << EVIDENCE_HEADER
         ## Sync Public Action Versions - Evidence Report
 
-        **Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')
-        **Workflow Run:** ${CLOUDBEES_RUN_ID}
-        **Commit:** ${CLOUDBEES_COMMIT_SHA}
-        **Branch:** ${CLOUDBEES_BRANCH}
+        **Generated:** $GENERATED_TIME
+        **Workflow Run:** $CLOUDBEES_RUN_ID
+        **Commit:** $CLOUDBEES_COMMIT_SHA
+        **Branch:** $CLOUDBEES_BRANCH
 
         ### Actions Changed
 
@@ -636,9 +637,9 @@ runs:
 
         ### Summary Statistics
 
-        - **Total Actions Changed:** ${CHANGED_COUNT}
-        - **Successful PR Creations:** ${SUCCESS_COUNT}
-        - **Errors/Warnings:** ${ERROR_COUNT}
+        - **Total Actions Changed:** $CHANGED_COUNT
+        - **Successful PR Creations:** $SUCCESS_COUNT
+        - **Errors/Warnings:** $ERROR_COUNT
 
         ### Next Steps
 
