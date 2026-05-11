@@ -71,7 +71,7 @@
       "jenkins-actions": "main-aef4e534d95d2b2a1f333501aaf5dfbb6eee4331",
       "jfrog-actions": "main-a55a44f6cf424b1e315bba31bbd0b9d03c645237",
       "jfrog-pipeline-actions": "main-4a894447e190649dd1c8db4471f9f827c66706ce",
-      "jfrog-xray-container-actions": "main-270c33a7a05094f2a2af1b504c52e858012ddcab",
+      "jfrog-xray-container-actions": "main-170c33a7a05094f2a2af1b504c52e858012ddcab",
       "kaniko-action": "723a7b24f2c753c5364b577b580a2300a0f283b7",
       "kubernetes-resource-actions": "main-6ebc0c5ff76d869a8e3f974b59e97835bfc7e9da",
       "kustomize-actions": "main-4116c2bb1d6c9c49489ff883bed2514d02d6b0b3",
