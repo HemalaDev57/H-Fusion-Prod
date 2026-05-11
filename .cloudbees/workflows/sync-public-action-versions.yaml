@@ -34,5 +34,6 @@ jobs:
         uses: ./actions/sync-public-action-versions
         with:
           app-id: ${{ vars.cloudbees_platform_app_id }}
-          installation-id: ${{ vars.h_installation_id }}
+          cloudbees-io-installation-id: ${{ vars.cloudbees_io_installation_id }}
+          cloudbees-io-gha-installation-id: ${{ vars.cloudbees_io_gha_installation_id }}
           private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
