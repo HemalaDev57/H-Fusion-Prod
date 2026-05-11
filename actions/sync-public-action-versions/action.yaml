@@ -456,7 +456,7 @@ runs:
           # Get version tags
           ACTION_MAJOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+$' | sort -V | tail -1)
           ACTION_MINOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-          if [ -z "$ACTION_MAJOR_VERSION" || -z "$ACTION_MINOR_VERSION" ]; then
+          if [ -z "$ACTION_MAJOR_VERSION" ] || [ -z "$ACTION_MINOR_VERSION" ]; then
             echo "⚠️ Unable to find the MAJOR/MINOR version tags in $PUBLIC_REPO repository."
             echo "⚠️ Skipping Jira ticket creation for this action."
             continue
