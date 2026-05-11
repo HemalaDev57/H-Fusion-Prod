@@ -30,6 +30,7 @@ jobs:
           fi
 
       - name: Sync action versions to public repos
+        id: sync-actions
         if: ${{ steps.check-changes.outputs.result == 'true' }}
         uses: ./actions/sync-public-action-versions
         with:
@@ -38,3 +39,9 @@ jobs:
           cloudbees-io-gha-installation-id: ${{ vars.cloudbees_io_gha_installation_id }}
           private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
           jira-api-token: "test"
+
+      - name: Publish workflow evidence
+        if: ${{ steps.check-changes.outputs.result == 'true' }}
+        uses: cloudbees-io/publish-evidence-item@v1
+        with:
+          content: ${{ steps.sync-actions.outputs.evidence-report }}
