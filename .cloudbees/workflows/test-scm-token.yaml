@@ -25,28 +25,14 @@ jobs:
           apk add --no-cache curl jq
 
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Testing cloudbees.scm.token access"
+          echo "Testing cloudbees.scm.token access to public repos"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
-
-          # Test 1: Check token validity
-          echo "🔍 Test 1: Checking token validity..."
-          TOKEN_CHECK=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/user)
-
-          if echo "$TOKEN_CHECK" | jq -e '.login' > /dev/null 2>&1; then
-            USER=$(echo "$TOKEN_CHECK" | jq -r '.login')
-            echo "✅ Token is valid, authenticated as: $USER"
-          else
-            echo "❌ Token is invalid or expired"
-            echo "Response: $TOKEN_CHECK"
-            exit 1
-          fi
+          echo "Note: cloudbees.scm.token is a GitHub App installation token"
           echo ""
 
-          # Test 2: Check access to cloudbees-io-gha org repo
-          echo "🔍 Test 2: Checking access to cloudbees-io-gha/publish-evidence-item..."
+          # Test 1: Check access to cloudbees-io-gha org repo
+          echo "🔍 Test 1: Checking access to cloudbees-io-gha/publish-evidence-item..."
           REPO_CHECK=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: token $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
@@ -62,12 +48,14 @@ jobs:
           else
             echo "❌ Cannot access cloudbees-io-gha/publish-evidence-item (HTTP $HTTP_CODE)"
             echo "Response: $RESPONSE"
-            exit 1
+            echo ""
+            echo "Result: cloudbees.scm.token does NOT have access to this org"
+            exit 0
           fi
           echo ""
 
-          # Test 3: Check write permissions (try to read a ref)
-          echo "🔍 Test 3: Checking read permissions on refs..."
+          # Test 2: Check read permissions on refs
+          echo "🔍 Test 2: Checking read permissions on refs..."
           REF_CHECK=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: token $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
@@ -78,17 +66,19 @@ jobs:
 
           if [ "$HTTP_CODE" = "200" ]; then
             SHA=$(echo "$RESPONSE" | jq -r '.object.sha')
-            echo "✅ Can read refs"
+            echo "✅ Can read refs (Contents: Read permission)"
             echo "   Latest SHA: $SHA"
           else
             echo "❌ Cannot read refs (HTTP $HTTP_CODE)"
             echo "Response: $RESPONSE"
-            exit 1
+            echo ""
+            echo "Result: Token has repo access but not Contents:Read"
+            exit 0
           fi
           echo ""
 
-          # Test 4: Try to create a test branch
-          echo "🔍 Test 4: Testing write permissions (create test branch)..."
+          # Test 3: Try to create a test branch (write permission)
+          echo "🔍 Test 3: Testing write permissions (create test branch)..."
           TEST_BRANCH="test-scm-token-$(date +%s)"
 
           CREATE_BRANCH=$(curl -s -w "\n%{http_code}" \
@@ -102,7 +92,7 @@ jobs:
           RESPONSE=$(echo "$CREATE_BRANCH" | sed '$d')
 
           if [ "$HTTP_CODE" = "201" ]; then
-            echo "✅ Can create branches! (Contents: Write permission confirmed)"
+            echo "✅ SUCCESS! Can create branches (Contents: Write permission)"
             echo "   Created: $TEST_BRANCH"
 
             # Clean up
@@ -112,18 +102,17 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               https://api.github.com/repos/cloudbees-io-gha/publish-evidence-item/git/refs/heads/$TEST_BRANCH > /dev/null
             echo "✅ Test branch deleted"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ RESULT: cloudbees.scm.token WORKS for public repos!"
+            echo "   You can use it directly without GitHub App token generation"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           else
             echo "❌ Cannot create branches (HTTP $HTTP_CODE)"
             echo "Response: $RESPONSE"
-
-            if [ "$HTTP_CODE" = "403" ]; then
-              echo ""
-              echo "⚠️  HTTP 403 means the token lacks write permissions"
-              echo "    Need to use GitHub App with installation IDs instead"
-            fi
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ RESULT: cloudbees.scm.token does NOT have write access"
+            echo "   Need to use GitHub App with installation IDs"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           fi
-          echo ""
-
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Test completed"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
