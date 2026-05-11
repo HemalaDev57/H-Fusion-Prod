@@ -35,12 +35,13 @@ runs:
     - name: Sync image versions in public repositories
       id: sync
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
-      shell: bash
       run: |
         set -e
 
         ARTIFACTS_JSON="versioning/action_artifacts.json"
         EVIDENCE_FILE="/tmp/evidence_report.md"
+        EVIDENCE_DATA_DIR="/tmp/evidence_data"
+        mkdir -p "$EVIDENCE_DATA_DIR"
 
         if [ ! -f "$ARTIFACTS_JSON" ]; then
           echo "❌ ERROR: $ARTIFACTS_JSON not found"
@@ -68,12 +69,6 @@ runs:
         CHANGED_ACTIONS=""
         ACTION_NAMES=$(echo "$CURRENT_JSON" | jq -r '.public.actions | keys[]')
 
-        # Track evidence data
-        declare -A EVIDENCE_OLD_VERSION
-        declare -A EVIDENCE_NEW_VERSION
-        declare -A EVIDENCE_PR_URL
-        declare -A EVIDENCE_STATUS
-
         for ACTION_NAME in $ACTION_NAMES; do
           CURRENT_VERSION=$(echo "$CURRENT_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"]")
           PREVIOUS_VERSION=$(echo "$PREVIOUS_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"] // empty")
@@ -86,11 +81,11 @@ runs:
               CHANGED_ACTIONS="${CHANGED_ACTIONS} ${ACTION_NAME}"
             fi
 
-            # Store for evidence
-            EVIDENCE_OLD_VERSION["$ACTION_NAME"]="$PREVIOUS_VERSION"
-            EVIDENCE_NEW_VERSION["$ACTION_NAME"]="$CURRENT_VERSION"
-            EVIDENCE_PR_URL["$ACTION_NAME"]="-"
-            EVIDENCE_STATUS["$ACTION_NAME"]="Processing"
+            # Store for evidence using files
+            echo "$PREVIOUS_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version"
+            echo "$CURRENT_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version"
+            echo "-" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+            echo "Processing" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
           fi
         done
 
@@ -211,7 +206,7 @@ runs:
             echo "⚠️  WARNING: Public repository $PUBLIC_REPO does not exist or is not accessible."
             echo "⚠️  Skipping PR creation for this action."
             echo ""
-            EVIDENCE_STATUS["$ACTION_NAME"]="❌ Repo not accessible"
+            echo "❌ Repo not accessible" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
           echo "✅ Public repository $PUBLIC_REPO exists"
@@ -241,7 +236,7 @@ runs:
             echo "⚠️  ERROR: Neither action.yml nor action.yaml found in $PUBLIC_REPO"
             echo "⚠️  This action may use a different structure. Manual update required."
             echo ""
-            EVIDENCE_STATUS["$ACTION_NAME"]="❌ No action file found"
+            echo "❌ No action file found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
 
@@ -272,7 +267,7 @@ runs:
               echo "⚠️  WARNING: Image uses Dockerfile build"
               echo "⚠️  Skipping image version update. Dockerfile-based actions are built from source."
               echo ""
-              EVIDENCE_STATUS["$ACTION_NAME"]="⚠️ Dockerfile-based (skipped)"
+              echo "⚠️ Dockerfile-based (skipped)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
               continue
             fi
 
@@ -283,14 +278,14 @@ runs:
               echo "⚠️  This action may use embedded plugins or different image format."
               echo "⚠️  Skipping image version update."
               echo ""
-              EVIDENCE_STATUS["$ACTION_NAME"]="❌ No matching image found"
+              echo "❌ No matching image found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
               continue
             else
               echo "⚠️  WARNING: Found docker:// image but doesn't match expected pattern 'actions/${ACTION_NAME}'"
               echo "   This might update the wrong image. Found: $CURRENT_IMAGE"
               echo "   Expected pattern: docker://*/actions/${ACTION_NAME}:*"
               echo ""
-              EVIDENCE_STATUS["$ACTION_NAME"]="⚠️ Ambiguous image pattern"
+              echo "⚠️ Ambiguous image pattern" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
               continue
             fi
           fi
@@ -305,7 +300,7 @@ runs:
           if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
             echo "✅ Image is already at version $NEW_VERSION. No update needed."
             echo ""
-            EVIDENCE_STATUS["$ACTION_NAME"]="✅ Already up-to-date"
+            echo "✅ Already up-to-date" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
 
@@ -318,7 +313,7 @@ runs:
             echo "⚠️  WARNING: Unexpected image format: $CURRENT_IMAGE"
             echo "⚠️  Skipping image version update."
             echo ""
-            EVIDENCE_STATUS["$ACTION_NAME"]="❌ Unexpected image format"
+            echo "❌ Unexpected image format" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
 
@@ -446,8 +441,8 @@ runs:
           echo ""
 
           # Update evidence with PR info
-          EVIDENCE_PR_URL["$ACTION_NAME"]="https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
-          EVIDENCE_STATUS["$ACTION_NAME"]="✅ PR Created"
+          echo "https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+          echo "✅ PR Created" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
@@ -594,10 +589,10 @@ runs:
 
         # Build evidence table rows
         for ACTION_NAME in $CHANGED_ACTIONS; do
-          OLD_VER="${EVIDENCE_OLD_VERSION[$ACTION_NAME]}"
-          NEW_VER="${EVIDENCE_NEW_VERSION[$ACTION_NAME]}"
-          PR_URL="${EVIDENCE_PR_URL[$ACTION_NAME]}"
-          STATUS="${EVIDENCE_STATUS[$ACTION_NAME]}"
+          OLD_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "unknown")
+          NEW_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version" 2>/dev/null || echo "unknown")
+          PR_URL=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" 2>/dev/null || echo "-")
+          STATUS=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status" 2>/dev/null || echo "Unknown")
 
           # Truncate versions for display (keep first 35 chars)
           OLD_VER_SHORT="$OLD_VER"
@@ -610,19 +605,25 @@ runs:
           fi
 
           # Format PR URL for markdown
-          if [[ "$PR_URL" =~ ^https:// ]]; then
-            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
-            PR_LINK="[PR #$PR_NUMBER]($PR_URL)"
-          else
-            PR_LINK="$PR_URL"
-          fi
+          case "$PR_URL" in
+            https://*)
+              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+              PR_LINK="[PR #$PR_NUMBER]($PR_URL)"
+              ;;
+            *)
+              PR_LINK="$PR_URL"
+              ;;
+          esac
 
           # Count statistics
-          if [[ "$STATUS" == *"✅"* ]]; then
-            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-          elif [[ "$STATUS" == *"❌"* ]] || [[ "$STATUS" == *"⚠️"* ]]; then
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
+          case "$STATUS" in
+            *"✅"*)
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              ;;
+            *"❌"*|*"⚠️"*)
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+              ;;
+          esac
 
           # Add table row
           echo "| $ACTION_NAME | \`$OLD_VER_SHORT\` | \`$NEW_VER_SHORT\` | $PR_LINK | $STATUS |" >> "$EVIDENCE_FILE"
