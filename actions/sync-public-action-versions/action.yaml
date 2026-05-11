@@ -276,7 +276,7 @@ runs:
           fi
 
           # Update the image in action file (handle both image: and uses: patterns)
-          NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed -E "s|(image|uses):.*$REGISTRY_PATH:[^[:space:]]*|\1: $NEW_IMAGE|")
+          NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed -E "s|image:.*$REGISTRY_PATH:[^[:space:]]*|image: $NEW_IMAGE|" | sed -E "s|uses:.*$REGISTRY_PATH:[^[:space:]]*|uses: $NEW_IMAGE|")
           ENCODED_CONTENT=$(echo "$NEW_CONTENT" | base64 -w 0)
 
           # Commit the change
