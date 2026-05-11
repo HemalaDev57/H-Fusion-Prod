@@ -15,6 +15,7 @@ jobs:
         uses: cloudbees-io/checkout@v2
         with:
           fetch-depth: 2
+          ref: ${{ cloudbees.scm.sha }}
 
       - name: Check if action_artifacts.json changed
         id: check-changes
