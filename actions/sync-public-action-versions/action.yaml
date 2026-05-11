@@ -567,14 +567,19 @@ runs:
         echo ""
         echo "🔄 Generating evidence report..."
 
+        # Set variables for evidence report
+        CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
+        CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
+        CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
+
         # Initialize evidence report with proper formatting
-        cat > "$EVIDENCE_FILE" << EVIDENCE_HEADER
+        cat > "$EVIDENCE_FILE" << 'EVIDENCE_HEADER'
 ## Sync Public Action Versions - Evidence Report
 
 **Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')
-**Workflow Run:** ${{ cloudbees.run_id }}
-**Commit:** ${{ cloudbees.scm.sha }}
-**Branch:** ${{ cloudbees.scm.branch }}
+**Workflow Run:** ${CLOUDBEES_RUN_ID}
+**Commit:** ${CLOUDBEES_COMMIT_SHA}
+**Branch:** ${CLOUDBEES_BRANCH}
 
 ### Actions Changed
 
@@ -623,15 +628,15 @@ EVIDENCE_HEADER
         done
 
         # Add summary section
-        cat >> "$EVIDENCE_FILE" << EVIDENCE_FOOTER
+        cat >> "$EVIDENCE_FILE" << 'EVIDENCE_FOOTER'
 
 ---
 
 ### Summary Statistics
 
-- **Total Actions Changed:** $CHANGED_COUNT
-- **Successful PR Creations:** $SUCCESS_COUNT
-- **Errors/Warnings:** $ERROR_COUNT
+- **Total Actions Changed:** ${CHANGED_COUNT}
+- **Successful PR Creations:** ${SUCCESS_COUNT}
+- **Errors/Warnings:** ${ERROR_COUNT}
 
 ### Next Steps
 
