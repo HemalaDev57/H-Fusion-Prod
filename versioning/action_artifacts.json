@@ -5,7 +5,7 @@
       "anchore-container-actions": "main-75cfec730325dd5d516ca56e560cdd23e077a87d",
       "ansible-actions": "main-dfb35666be2cc74f8abdcdb72db792c10d307c19",
       "appdynamics-actions": "main-b92018d151ae57bab0e5245b591798e9cf1be4bb",
-      "aquasec-actions": "main-dee13c395d38b835b0f99354e6ced0484acd6169",
+      "aquasec-actions": "main-d1e13c225d38b835b0f99354e6ced0484acd6356",
       "argocd-actions": "main-32d1f8dc24177b68405e488248a73b6512982c89",
       "argoworkflows-actions": "main-1f0560f5201f1c340a6284fba415de225db77356",
       "assets-aws-ecr": "29e5e22b59da47505145700c81eade6010d62406",

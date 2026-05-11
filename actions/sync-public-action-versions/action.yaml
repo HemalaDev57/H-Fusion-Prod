@@ -19,6 +19,11 @@ inputs:
     required: true
     description: Jira API token for creating tickets
 
+outputs:
+  evidence-report:
+    description: Markdown formatted evidence report of all changes
+    value: ${{ steps.sync.outputs.evidence }}
+
 runs:
   using: composite
   steps:
@@ -28,11 +33,15 @@ runs:
         fetch-depth: 0
 
     - name: Sync image versions in public repositories
+      id: sync
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
       run: |
         set -e
 
         ARTIFACTS_JSON="versioning/action_artifacts.json"
+        EVIDENCE_FILE="/tmp/evidence_report.md"
+        EVIDENCE_DATA_DIR="/tmp/evidence_data"
+        mkdir -p "$EVIDENCE_DATA_DIR"
 
         if [ ! -f "$ARTIFACTS_JSON" ]; then
           echo "❌ ERROR: $ARTIFACTS_JSON not found"
@@ -71,6 +80,12 @@ runs:
             else
               CHANGED_ACTIONS="${CHANGED_ACTIONS} ${ACTION_NAME}"
             fi
+
+            # Store for evidence using files
+            echo "$PREVIOUS_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version"
+            echo "$CURRENT_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version"
+            echo "-" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+            echo "Processing" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
           fi
         done
 
@@ -191,6 +206,7 @@ runs:
             echo "⚠️  WARNING: Public repository $PUBLIC_REPO does not exist or is not accessible."
             echo "⚠️  Skipping PR creation for this action."
             echo ""
+            echo "❌ Repo not accessible" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
           echo "✅ Public repository $PUBLIC_REPO exists"
@@ -220,6 +236,7 @@ runs:
             echo "⚠️  ERROR: Neither action.yml nor action.yaml found in $PUBLIC_REPO"
             echo "⚠️  This action may use a different structure. Manual update required."
             echo ""
+            echo "❌ No action file found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
 
@@ -228,35 +245,79 @@ runs:
           CURRENT_FILE_SHA=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.sha')
           CURRENT_CONTENT=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.content' | base64 -d)
 
-          # Extract current image version (handle both image: and uses: with docker:// patterns)
-          CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+          # Extract current image version - match action name in image path
+          # Look for docker://*/actions/${ACTION_NAME}: pattern
+          IMAGE_PATTERN="actions/${ACTION_NAME}:"
+          CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+
+          # If not found, try without -actions suffix (e.g., plugin-blackduck-sca)
+          if [ -z "$CURRENT_IMAGE" ]; then
+            ALT_ACTION_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
+            ALT_IMAGE_PATTERN="actions/${ALT_ACTION_NAME}:"
+            CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${ALT_IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+            if [ -n "$CURRENT_IMAGE" ]; then
+              IMAGE_PATTERN="$ALT_IMAGE_PATTERN"
+            fi
+          fi
+
+          # If still not found, check if it's a Dockerfile-based action
+          if [ -z "$CURRENT_IMAGE" ]; then
+            DOCKERFILE_CHECK=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -i "Dockerfile" | head -1)
+            if [ -n "$DOCKERFILE_CHECK" ]; then
+              echo "⚠️  WARNING: Image uses Dockerfile build"
+              echo "⚠️  Skipping image version update. Dockerfile-based actions are built from source."
+              echo ""
+              echo "⚠️ Dockerfile-based (skipped)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi
+
+            # Check for any docker:// image (fallback for non-standard naming)
+            CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+            if [ -z "$CURRENT_IMAGE" ]; then
+              echo "⚠️  WARNING: No docker:// image found for actions/${ACTION_NAME}"
+              echo "⚠️  This action may use embedded plugins or different image format."
+              echo "⚠️  Skipping image version update."
+              echo ""
+              echo "❌ No matching image found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            else
+              echo "⚠️  WARNING: Found docker:// image but doesn't match expected pattern 'actions/${ACTION_NAME}'"
+              echo "   This might update the wrong image. Found: $CURRENT_IMAGE"
+              echo "   Expected pattern: docker://*/actions/${ACTION_NAME}:*"
+              echo ""
+              echo "⚠️ Ambiguous image pattern" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi
+          fi
+
           echo "📸 Current image: $CURRENT_IMAGE"
+
+          # Extract current version from image
+          CURRENT_VERSION=$(echo "$CURRENT_IMAGE" | grep -oE '[^:]+$')
+          echo "   Current version: $CURRENT_VERSION"
+
+          # Check if already up-to-date BEFORE building new image
+          if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+            echo "✅ Image is already at version $NEW_VERSION. No update needed."
+            echo ""
+            echo "✅ Already up-to-date" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+            continue
+          fi
 
           # Determine the new image path
           if echo "$CURRENT_IMAGE" | grep -q "^docker://"; then
             # Extract ECR registry path from current image
             REGISTRY_PATH=$(echo "$CURRENT_IMAGE" | sed 's|^docker://||' | sed 's|:.*$||')
             NEW_IMAGE="docker://$REGISTRY_PATH:$NEW_VERSION"
-          elif echo "$CURRENT_IMAGE" | grep -q "Dockerfile"; then
-            echo "⚠️  WARNING: Image uses Dockerfile build: $CURRENT_IMAGE"
-            echo "⚠️  Skipping image version update. Dockerfile-based actions are built from source."
-            echo ""
-            continue
           else
             echo "⚠️  WARNING: Unexpected image format: $CURRENT_IMAGE"
             echo "⚠️  Skipping image version update."
             echo ""
+            echo "❌ Unexpected image format" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
 
           echo "🆕 New image: $NEW_IMAGE"
-
-          # Check if update is needed
-          if [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
-            echo "✅ Image is already at version $NEW_VERSION. No update needed."
-            echo ""
-            continue
-          fi
 
           # Create or update branch
           echo "🔄 Checking if $BRANCH branch already exists in $PUBLIC_REPO..."
@@ -275,8 +336,11 @@ runs:
             echo "✅ Branch $BRANCH updated to match $DEFAULT_BRANCH"
           fi
 
-          # Update the image in action file (handle both image: and uses: patterns)
-          NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed -E "s|image:.*$REGISTRY_PATH:[^[:space:]]*|image: $NEW_IMAGE|" | sed -E "s|uses:.*$REGISTRY_PATH:[^[:space:]]*|uses: $NEW_IMAGE|")
+          # Update the image in action file - use IMAGE_PATTERN for precise matching
+          # This ensures we only replace the specific action image, not helper images
+          ESCAPED_CURRENT_IMAGE=$(echo "$CURRENT_IMAGE" | sed 's|/|\\/|g')
+          ESCAPED_NEW_IMAGE=$(echo "$NEW_IMAGE" | sed 's|/|\\/|g')
+          NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed "s|${ESCAPED_CURRENT_IMAGE}|${ESCAPED_NEW_IMAGE}|g")
           ENCODED_CONTENT=$(echo "$NEW_CONTENT" | base64 -w 0)
 
           # Commit the change
@@ -375,6 +439,10 @@ runs:
           echo ""
           echo "✅ Draft pull request created at https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
           echo ""
+
+          # Update evidence with PR info
+          echo "https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+          echo "✅ PR Created" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
@@ -490,3 +558,104 @@ runs:
         echo "   2. Verify Docker images are available in public registry"
         echo "   3. Create Jira ticket for SRE (related to CBP-36642)"
         echo "   4. SRE will merge PRs and create release tags"
+
+        # Generate evidence report
+        echo ""
+        echo "🔄 Generating evidence report..."
+
+        # Set variables for evidence report
+        CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
+        CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
+        CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
+
+        # Initialize evidence report with proper formatting
+        cat > "$EVIDENCE_FILE" << 'EVIDENCE_HEADER'
+        ## Sync Public Action Versions - Evidence Report
+
+        **Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')
+        **Workflow Run:** ${CLOUDBEES_RUN_ID}
+        **Commit:** ${CLOUDBEES_COMMIT_SHA}
+        **Branch:** ${CLOUDBEES_BRANCH}
+
+        ### Actions Changed
+
+        | Action Name | Old Version | New Version | PR Created | Status |
+        |-------------|-------------|-------------|------------|--------|
+        EVIDENCE_HEADER
+
+        # Count statistics
+        SUCCESS_COUNT=0
+        ERROR_COUNT=0
+
+        # Build evidence table rows
+        for ACTION_NAME in $CHANGED_ACTIONS; do
+          OLD_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "unknown")
+          NEW_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version" 2>/dev/null || echo "unknown")
+          PR_URL=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" 2>/dev/null || echo "-")
+          STATUS=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status" 2>/dev/null || echo "Unknown")
+
+          # Truncate versions for display (keep first 35 chars)
+          OLD_VER_SHORT="$OLD_VER"
+          NEW_VER_SHORT="$NEW_VER"
+          if [ ${#OLD_VER} -gt 35 ]; then
+            OLD_VER_SHORT="$(echo "$OLD_VER" | head -c 32)..."
+          fi
+          if [ ${#NEW_VER} -gt 35 ]; then
+            NEW_VER_SHORT="$(echo "$NEW_VER" | head -c 32)..."
+          fi
+
+          # Format PR URL for markdown
+          case "$PR_URL" in
+            https://*)
+              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+              PR_LINK="[PR #$PR_NUMBER]($PR_URL)"
+              ;;
+            *)
+              PR_LINK="$PR_URL"
+              ;;
+          esac
+
+          # Count statistics
+          case "$STATUS" in
+            *"✅"*)
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              ;;
+            *"❌"*|*"⚠️"*)
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+              ;;
+          esac
+
+          # Add table row
+          echo "| $ACTION_NAME | \`$OLD_VER_SHORT\` | \`$NEW_VER_SHORT\` | $PR_LINK | $STATUS |" >> "$EVIDENCE_FILE"
+        done
+
+        # Add summary section
+        cat >> "$EVIDENCE_FILE" << 'EVIDENCE_FOOTER'
+
+        ---
+
+        ### Summary Statistics
+
+        - **Total Actions Changed:** ${CHANGED_COUNT}
+        - **Successful PR Creations:** ${SUCCESS_COUNT}
+        - **Errors/Warnings:** ${ERROR_COUNT}
+
+        ### Next Steps
+
+        1. ✅ Review all draft PRs in their respective repositories
+        2. ⏳ Wait for Docker images to be available in public registry
+        3. 📋 Monitor Jira tickets for SRE team actions
+        4. 🏷️ Verify release tags are created after PR merges
+
+        ---
+
+        **Repository:** calculi-corp/platform-helmfiles
+        EVIDENCE_FOOTER
+
+        # Output evidence to CloudBees output
+        if [ -f "$EVIDENCE_FILE" ]; then
+          cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
+          echo "✅ Evidence report generated and saved to outputs"
+        else
+          echo "❌ ERROR: Evidence file not created"
+        fi
