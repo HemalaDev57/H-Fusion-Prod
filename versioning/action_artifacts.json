@@ -5,7 +5,7 @@
       "test-action-1": "main-2b73e70a7a28ddd30cd7eaf62cc62f9bbae3f354",
       "test-action-2": "main-2a73e70a7a28ddd30cd7eaf62cc62f9bbae3f354",
       "gha-register-build-artifact": "main-2a53e70a7a28ddd30cd7eaf62cc62f9bbae3f242",
-      "argocd-actions": "main-2a53e70a7a28ddd30cd7eaf62cc62f9bbae3f332"
+      "argocd-actions": "main-32d1f8dc24177b68405e488248a73b6512982c87"
     }
   }
 }
