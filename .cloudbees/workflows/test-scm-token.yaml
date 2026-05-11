@@ -3,6 +3,9 @@ kind: workflow
 name: Test SCM Token Access
 
 on:
+  push:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
