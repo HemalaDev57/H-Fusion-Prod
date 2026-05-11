@@ -569,7 +569,7 @@ runs:
         CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
 
         # Initialize evidence report with proper formatting
-        cat > "$EVIDENCE_FILE" << 'EVIDENCE_HEADER'
+        cat > "$EVIDENCE_FILE" << EVIDENCE_HEADER
         ## Sync Public Action Versions - Evidence Report
 
         **Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')
@@ -630,7 +630,7 @@ runs:
         done
 
         # Add summary section
-        cat >> "$EVIDENCE_FILE" << 'EVIDENCE_FOOTER'
+        cat >> "$EVIDENCE_FILE" << EVIDENCE_FOOTER
 
         ---
 
