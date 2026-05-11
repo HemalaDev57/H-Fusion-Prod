@@ -1,0 +1,15 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: Test SCM Token Access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  scm-token-own: read
+
+jobs:
+  test-scm-token:
+    steps:
+      - name: Test cloudbees.scm.token
+        uses: ./actions/sync-public-action-versions/action-test-scm-token.yaml
