@@ -1,6 +1,7 @@
 {
   "_comment": "Test mapping for H-Fusion-Test repository in HemalaDev57 org",
   "exceptions": {
-    "test-action": "HemalaDev57/H-Fusion-Test"
+    "test-action": "HemalaDev57/H-Fusion-Test",
+    "gha-register-build-artifact": "cloudbees-io-gha/register-build-artifact"
   }
 }

@@ -6,12 +6,19 @@ inputs:
   app-id:
     required: true
     description: The GitHub application ID to use for creating PRs in public repos
-  installation-id:
+  cloudbees-io-installation-id:
     required: true
-    description: The GitHub installation ID for the GitHub application
+    description: The GitHub installation ID for the cloudbees-io organization
+  cloudbees-io-gha-installation-id:
+    required: true
+    description: The GitHub installation ID for the cloudbees-io-gha organization
   private-key-b64:
     required: true
     description: The PEM encoded private key of the GitHub application, Base64 encoded
+  jira-api-token:
+    required: true
+    description: Jira API token for creating tickets
+
 runs:
   using: composite
   steps:
@@ -24,11 +31,6 @@ runs:
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
       run: |
         set -e
-
-        echo "🔄 Obtaining GitHub App Installation token..."
-        export GH_TOKEN="$(gh-token generate --app-id "${{ inputs.app-id }}" --installation-id "${{ inputs.installation-id }}" --base64-key "${{ inputs.private-key-b64 }}" --token-only )"
-        echo "✅ GitHub App Installation token obtained"
-        echo ""
 
         ARTIFACTS_JSON="versioning/action_artifacts.json"
 
@@ -108,7 +110,7 @@ runs:
           # If no exception found, use standard naming patterns
           if [ -z "$PUBLIC_REPO" ]; then
             # For GHA actions: gha-* -> cloudbees-io-gha/*
-            # For CBP actions: *-actions -> HemalaDev57/*
+            # For CBP actions: *-actions -> cloudbees-io/*
             if echo "$ACTION_NAME" | grep -q "^gha-"; then
               # GHA actions: gha-register-deployed-artifact -> register-deployed-artifact
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/^gha-//')
@@ -116,11 +118,72 @@ runs:
             else
               # CBP actions: github-actions -> github
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
-              PUBLIC_REPO="HemalaDev57/$PUBLIC_REPO_NAME"
+              PUBLIC_REPO="cloudbees-io/$PUBLIC_REPO_NAME"
             fi
           fi
 
           echo "🎯 Target public repository: $PUBLIC_REPO"
+
+          # Determine which installation ID to use based on the organization
+          echo "🔄 Determining GitHub App installation ID for organization..."
+          INSTALLATION_ID=""
+          if echo "$PUBLIC_REPO" | grep -q "^cloudbees-io/"; then
+            INSTALLATION_ID="${{ inputs.cloudbees-io-installation-id }}"
+            echo "✅ Using cloudbees-io installation ID: $INSTALLATION_ID"
+          elif echo "$PUBLIC_REPO" | grep -q "^cloudbees-io-gha/"; then
+            INSTALLATION_ID="${{ inputs.cloudbees-io-gha-installation-id }}"
+            echo "✅ Using cloudbees-io-gha installation ID: $INSTALLATION_ID"
+          else
+            echo "❌ ERROR: Unknown organization for repository $PUBLIC_REPO"
+            echo "⚠️  Skipping PR creation for this action."
+            echo ""
+            continue
+          fi
+
+          # Validate installation ID is not empty
+          if [ -z "$INSTALLATION_ID" ]; then
+            echo "❌ ERROR: Installation ID is empty"
+            echo "⚠️  Check that the CloudBees variables are configured:"
+            echo "   - vars.cloudbees_io_installation_id"
+            echo "   - vars.cloudbees_io_gha_installation_id"
+            echo "⚠️  Skipping PR creation for this action."
+            echo ""
+            continue
+          fi
+
+          # Generate GitHub App Installation token for this organization
+          echo "🔄 Obtaining GitHub App Installation token..."
+          echo "🔍 Debug - App ID: ${{ inputs.app-id }}"
+          echo "🔍 Debug - Installation ID: $INSTALLATION_ID"
+          echo "🔍 Debug - Private key length: $(echo '${{ inputs.private-key-b64 }}' | wc -c)"
+          GH_TOKEN_OUTPUT=$(gh-token generate --app-id "${{ inputs.app-id }}" --installation-id "$INSTALLATION_ID" --base64-key "${{ inputs.private-key-b64 }}" --token-only 2>&1)
+          GH_TOKEN_EXIT_CODE=$?
+
+          if [ $GH_TOKEN_EXIT_CODE -ne 0 ]; then
+            echo "❌ ERROR: Failed to generate GitHub App Installation token"
+            echo "Error details: $GH_TOKEN_OUTPUT"
+            echo ""
+            echo "Possible causes:"
+            echo "  - Invalid or malformed private key (check base64 encoding)"
+            echo "  - Incorrect app-id or installation-id"
+            echo "  - Private key format issue (must be PEM encoded PKCS1 or PKCS8)"
+            echo "⚠️  Skipping PR creation for this action."
+            echo ""
+            continue
+          fi
+
+          export GH_TOKEN="$GH_TOKEN_OUTPUT"
+
+          # Validate token is not empty
+          if [ -z "$GH_TOKEN" ] || [ "$GH_TOKEN" = "null" ]; then
+            echo "❌ ERROR: GitHub token is empty or null"
+            echo "⚠️  Skipping PR creation for this action."
+            echo ""
+            continue
+          fi
+
+          echo "✅ GitHub App Installation token obtained"
+          echo ""
 
           # Check if public repository exists
           echo "🔄 Checking if public repository exists..."
@@ -312,14 +375,116 @@ runs:
           echo ""
           echo "✅ Draft pull request created at https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
           echo ""
+
+          # Get platform-helmfiles PR information
+          PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
+          PLATFORM_HELMFILES_PR=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].url')
+          if [ -z "$PLATFORM_HELMFILES_PR" ]; then
+            echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA in calculi-corp/platform-helmfiles."
+            echo "⚠️ Skipping Jira ticket creation for this action."
+            continue
+          fi
+
+          # Get version tags
+          ACTION_MAJOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+$' | sort -V | tail -1)
+          ACTION_MINOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$ACTION_MAJOR_VERSION" || -z "$ACTION_MINOR_VERSION" ]; then
+            echo "⚠️ Unable to find the MAJOR/MINOR version tags in $PUBLIC_REPO repository."
+            echo "⚠️ Skipping Jira ticket creation for this action."
+            continue
+          fi
+
+          echo "📌 Latest MAJOR version tag: $ACTION_MAJOR_VERSION"
+          echo "📌 Latest MINOR version tag: $ACTION_MINOR_VERSION"
+          MAJOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f1)
+          MINOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f2)
+          PATCH=$(echo $ACTION_MINOR_VERSION | cut -d. -f3)
+          NEW_PATCH_VERSION=$((PATCH + 1))
+          NEW_MINOR_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
+          echo "🔖 New version tag to be created: $NEW_MINOR_VERSION"
+
+          # Create Jira ticket
+          echo "🔄 Creating Jira ticket for SRE... (CBP SRE Respone Team)"
+          JIRA_BASE_URL="https://cloudbees.atlassian.net"
+          JIRA_TEAM_FIELD_ID="customfield_12000"
+          JIRA_TEAM_ID="de72d37f-5d58-48a5-a466-455eac216fa1"
+
+          JIRA_SUMMARY="[SRE] Merge PR and create release tag for $ACTION_NAME with version $ACTION_MAJOR_VERSION and $NEW_MINOR_VERSION"
+          PUBLIC_REPO_PR_URL="https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
+
+          # Load Jira description template and replace placeholders
+          TEMPLATE_FILE="actions/sync-public-action-versions/jira-ticket-template.json"
+          if [ ! -f "$TEMPLATE_FILE" ]; then
+            echo "⚠️ Jira template file not found: $TEMPLATE_FILE"
+            echo "⚠️ Skipping Jira ticket creation for this action."
+            continue
+          fi
+
+          JIRA_DESCRIPTION=$(cat "$TEMPLATE_FILE" | \
+            sed "s|{{PUBLIC_REPO}}|$PUBLIC_REPO|g" | \
+            sed "s|{{ACTION_MAJOR_VERSION}}|$ACTION_MAJOR_VERSION|g" | \
+            sed "s|{{NEW_MINOR_VERSION}}|$NEW_MINOR_VERSION|g" | \
+            sed "s|{{PLATFORM_HELMFILES_PR}}|$PLATFORM_HELMFILES_PR|g" | \
+            sed "s|{{PUBLIC_REPO_PR_URL}}|$PUBLIC_REPO_PR_URL|g") | \
+            sed "s|{{COMPARE_URL}}|$COMPARE_URL|g")
+
+          # Create Jira payload with optional Team field
+          if [ -n "$JIRA_TEAM_FIELD_ID" ] && [ -n "$JIRA_TEAM_ID" ]; then
+            echo "📋 Creating ticket to team ID: $JIRA_TEAM_ID (field: $JIRA_TEAM_FIELD_ID)"
+            JIRA_PAYLOAD=$(jq -n \
+              --arg summary "$JIRA_SUMMARY" \
+              --argjson description "$JIRA_DESCRIPTION" \
+              --arg team_field "$JIRA_TEAM_FIELD_ID" \
+              --arg team_id "$JIRA_TEAM_ID" \
+              '{
+                fields: (
+                  {
+                    project: { key: "CBP" },
+                    summary: $summary,
+                    description: $description,
+                    issuetype: { name: "Task" },
+                    labels: ["sre", "automation", "public-actions-release"]
+                  } + {
+                    ($team_field): $team_id
+                  }
+                )
+              }')
+          else
+            JIRA_PAYLOAD=$(jq -n \
+              --arg summary "$JIRA_SUMMARY" \
+              --argjson description "$JIRA_DESCRIPTION" \
+              '{
+                fields: {
+                  project: { key: "CBP" },
+                  summary: $summary,
+                  description: $description,
+                  issuetype: { name: "Task" },
+                  labels: ["sre", "automation", "public-actions-release"]
+                }
+              }')
+          fi
+
+          JIRA_RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -u "${{ inputs.jira-api-token }}" \
+            -d "$JIRA_PAYLOAD" \
+            "$JIRA_BASE_URL/rest/api/3/issue")
+
+          JIRA_TICKET_KEY=$(echo "$JIRA_RESPONSE" | jq -r '.key // empty')
+
+          if [ -n "$JIRA_TICKET_KEY" ]; then
+            echo "✅ Jira ticket created: $JIRA_BASE_URL/browse/$JIRA_TICKET_KEY"
+          else
+            echo "⚠️ Failed to create Jira ticket"
+            echo "Response: $JIRA_RESPONSE"
+          fi
+
         done
 
-        echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "Summary"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "✅ Processed $CHANGED_COUNT changed action(s)"
-        echo ""
         echo "🎯 Next steps:"
         echo "   1. Review the draft PRs created in public repositories"
         echo "   2. Verify Docker images are available in public registry"
