@@ -33,6 +33,6 @@ jobs:
         if: ${{ steps.check-changes.outputs.result == 'true' }}
         uses: ./actions/sync-public-action-versions
         with:
-          app-id: "test"
-          installation-id: "test"
-          private-key-b64: "test"
+          app-id: ${{ vars.cloudbees_platform_app_id }}
+          installation-id: ${{ vars.h_installation_id }}
+          private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
