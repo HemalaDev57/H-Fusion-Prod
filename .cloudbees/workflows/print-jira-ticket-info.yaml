@@ -1,0 +1,209 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: Print Jira Ticket Information
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  print-jira-info:
+    if: ${{ cloudbees.scm.branch == 'master' }}
+    steps:
+      - name: Checkout
+        uses: cloudbees-io/checkout@v2
+        with:
+          fetch-depth: 2
+
+      - name: Check if action_artifacts.json changed
+        id: check-changes
+        uses: docker://alpine/git:latest
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q "versioning/action_artifacts.json"; then
+            echo -n "true" > $CLOUDBEES_OUTPUTS/result
+          else
+            echo -n "false" > $CLOUDBEES_OUTPUTS/result
+          fi
+
+      - name: Print Jira ticket information
+        if: ${{ steps.check-changes.outputs.result == 'true' }}
+        uses: docker://alpine/git:latest
+        run: |
+          apk add --no-cache jq curl bash
+
+          ARTIFACTS_JSON="versioning/action_artifacts.json"
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 Jira Ticket Information (CBP-36642)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+          # Detect which actions changed
+          echo "🔍 Detecting changed actions..."
+          CURRENT_JSON=$(cat "$ARTIFACTS_JSON")
+          PREVIOUS_JSON=$(git show HEAD~1:"$ARTIFACTS_JSON" 2>/dev/null || echo "{}")
+
+          CHANGED_ACTIONS=""
+          ACTION_NAMES=$(echo "$CURRENT_JSON" | jq -r '.public.actions | keys[]')
+
+          for ACTION_NAME in $ACTION_NAMES; do
+            CURRENT_VERSION=$(echo "$CURRENT_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"]")
+            PREVIOUS_VERSION=$(echo "$PREVIOUS_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"] // empty")
+
+            if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+              echo "  📦 Changed: $ACTION_NAME ($PREVIOUS_VERSION → $CURRENT_VERSION)"
+              if [ -z "$CHANGED_ACTIONS" ]; then
+                CHANGED_ACTIONS="$ACTION_NAME"
+              else
+                CHANGED_ACTIONS="${CHANGED_ACTIONS} ${ACTION_NAME}"
+              fi
+            fi
+          done
+
+          if [ -z "$CHANGED_ACTIONS" ]; then
+            echo "ℹ️  No changed actions detected"
+            exit 0
+          fi
+
+          echo ""
+
+          # Get platform repository and commit information
+          PLATFORM_REPO="${{ cloudbees.scm.repository }}"
+          PLATFORM_COMMIT="${{ cloudbees.scm.sha }}"
+
+          # Find the PR that was merged into master
+          # Look at the merge commit message which typically contains "Merge pull request #123"
+          echo "🔍 Finding merged PR information..."
+
+          MERGE_COMMIT_MSG=$(git log -1 --format='%s' HEAD)
+          echo "   Merge commit: $MERGE_COMMIT_MSG"
+
+          # Extract PR number from merge commit message
+          PLATFORM_PR_NUMBER=$(echo "$MERGE_COMMIT_MSG" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+
+          if [ -z "$PLATFORM_PR_NUMBER" ]; then
+            # Try to find PR via GitHub API using the commit SHA
+            echo "   Trying GitHub API to find PR..."
+            # Install GitHub CLI if needed
+            if ! command -v gh &> /dev/null; then
+              echo "   GitHub CLI not available, using commit info only"
+              PLATFORM_PR_URL="Direct commit to master (SHA: $PLATFORM_COMMIT)"
+              PR_AUTHOR=$(git log -1 --format='%an <%ae>' HEAD)
+            else
+              # Query GitHub API for PR associated with this commit
+              PR_DATA=$(gh api "repos/$PLATFORM_REPO/commits/$PLATFORM_COMMIT/pulls" 2>/dev/null || echo "[]")
+              PLATFORM_PR_NUMBER=$(echo "$PR_DATA" | jq -r '.[0].number // empty')
+
+              if [ -n "$PLATFORM_PR_NUMBER" ]; then
+                PLATFORM_PR_URL="https://github.com/$PLATFORM_REPO/pull/$PLATFORM_PR_NUMBER"
+                PR_AUTHOR=$(echo "$PR_DATA" | jq -r '.[0].user.login // empty')
+                PR_AUTHOR_NAME=$(echo "$PR_DATA" | jq -r '.[0].user.name // empty')
+                if [ -n "$PR_AUTHOR_NAME" ]; then
+                  PR_AUTHOR="$PR_AUTHOR_NAME ($PR_AUTHOR)"
+                fi
+              else
+                PLATFORM_PR_URL="Direct commit to master (SHA: $PLATFORM_COMMIT)"
+                PR_AUTHOR=$(git log -1 --format='%an <%ae>' HEAD)
+              fi
+            fi
+          else
+            # PR number found in merge commit message
+            PLATFORM_PR_URL="https://github.com/$PLATFORM_REPO/pull/$PLATFORM_PR_NUMBER"
+            # Get author from git log
+            PR_AUTHOR=$(git log -1 --format='%an <%ae>' HEAD)
+          fi
+
+          echo "   ✅ Found PR: #$PLATFORM_PR_NUMBER"
+          echo ""
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "General Information"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "🏠 Repository: $PLATFORM_REPO"
+          echo "📝 Merged PR: $PLATFORM_PR_URL"
+          echo "👤 PR Author: $PR_AUTHOR"
+          echo "🔗 Commit SHA: $PLATFORM_COMMIT"
+          echo ""
+
+          # Process each changed action
+          for ACTION_NAME in $CHANGED_ACTIONS; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Action: $ACTION_NAME"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+
+            # Get versions
+            NEW_VERSION=$(echo "$CURRENT_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"]")
+            PREVIOUS_VERSION=$(echo "$PREVIOUS_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"] // empty")
+
+            if [ -z "$PREVIOUS_VERSION" ] || [ "$PREVIOUS_VERSION" = "null" ]; then
+              PREVIOUS_VERSION="N/A (new action)"
+            fi
+
+            # Get source repository
+            SOURCE_REPO="calculi-corp/$ACTION_NAME"
+
+            # Extract commit SHAs from version strings (format: branch-commitsha)
+            PREV_SHA=$(echo "$PREVIOUS_VERSION" | sed 's/.*-//')
+            NEW_SHA=$(echo "$NEW_VERSION" | sed 's/.*-//')
+
+            # Construct comparison URL
+            if [ "$PREVIOUS_VERSION" != "N/A (new action)" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
+              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREV_SHA}...${NEW_SHA}"
+            else
+              COMPARE_URL="https://github.com/${SOURCE_REPO}/commit/${NEW_SHA}"
+            fi
+
+            # Determine public repo (simplified - assumes standard naming)
+            if echo "$ACTION_NAME" | grep -q "^gha-"; then
+              PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/^gha-//')
+              PUBLIC_REPO="cloudbees-io-gha/$PUBLIC_REPO_NAME"
+            else
+              PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
+              PUBLIC_REPO="cloudbees-io/$PUBLIC_REPO_NAME"
+            fi
+
+            # Expected draft PR branch and URL
+            DRAFT_PR_BRANCH="update-image-${NEW_VERSION}"
+            EXPECTED_DRAFT_PR="https://github.com/$PUBLIC_REPO/pulls?q=is:pr+head:$DRAFT_PR_BRANCH"
+
+            echo "📋 Information for SRE Jira Ticket:"
+            echo ""
+            echo "1️⃣  Original PR with code changes (in action repo):"
+            echo "    🔗 $COMPARE_URL"
+            echo "    📦 Source repo: $SOURCE_REPO"
+            echo ""
+            echo "2️⃣  PR Author (who merged to H-Fusion-Prod):"
+            echo "    👤 $PR_AUTHOR"
+            echo ""
+            echo "3️⃣  PR to H-Fusion-Prod that triggered this sync:"
+            echo "    🔗 $PLATFORM_PR_URL"
+            echo "    📝 This PR updated action_artifacts.json with new version"
+            echo ""
+            echo "4️⃣  Draft PR to public repository (created by sync action):"
+            echo "    📦 Repository: $PUBLIC_REPO"
+            echo "    🌿 Branch: $DRAFT_PR_BRANCH"
+            echo "    🔗 Find PR: $EXPECTED_DRAFT_PR"
+            echo ""
+            echo "📦 Version Information:"
+            echo "    ⬅️  Previous: $PREVIOUS_VERSION"
+            echo "    ➡️  New: $NEW_VERSION"
+            echo ""
+            echo "📝 Instructions for SRE:"
+            echo "    1. Review and merge the draft PR in $PUBLIC_REPO"
+            echo "    2. Create a new GitHub release with tag: v$NEW_VERSION"
+            echo "    3. Update v1 tag to point to the new release"
+            echo ""
+            echo "════════════════════════════════════════════════"
+            echo ""
+          done
+
+          echo "✅ All information collected for Jira ticket creation"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Copy the information above"
+          echo "  2. Create Jira ticket in SRE project (CBP-36642)"
+          echo "  3. Add the PR author as watcher"
+          echo "  4. Link related Jira tickets if found"
