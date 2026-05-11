@@ -574,18 +574,18 @@ runs:
 
         # Initialize evidence report with proper formatting
         cat > "$EVIDENCE_FILE" << 'EVIDENCE_HEADER'
-## Sync Public Action Versions - Evidence Report
+        ## Sync Public Action Versions - Evidence Report
 
-**Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')
-**Workflow Run:** ${CLOUDBEES_RUN_ID}
-**Commit:** ${CLOUDBEES_COMMIT_SHA}
-**Branch:** ${CLOUDBEES_BRANCH}
+        **Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')
+        **Workflow Run:** ${CLOUDBEES_RUN_ID}
+        **Commit:** ${CLOUDBEES_COMMIT_SHA}
+        **Branch:** ${CLOUDBEES_BRANCH}
 
-### Actions Changed
+        ### Actions Changed
 
-| Action Name | Old Version | New Version | PR Created | Status |
-|-------------|-------------|-------------|------------|--------|
-EVIDENCE_HEADER
+        | Action Name | Old Version | New Version | PR Created | Status |
+        |-------------|-------------|-------------|------------|--------|
+        EVIDENCE_HEADER
 
         # Count statistics
         SUCCESS_COUNT=0
