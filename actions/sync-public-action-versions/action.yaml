@@ -378,7 +378,7 @@ runs:
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
-          PLATFORM_HELMFILES_PR=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].url')
+          PLATFORM_HELMFILES_PR=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].url // empty' 2>/dev/null || echo "")
           if [ -z "$PLATFORM_HELMFILES_PR" ]; then
             echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA in calculi-corp/platform-helmfiles."
             echo "⚠️ Skipping Jira ticket creation for this action."
