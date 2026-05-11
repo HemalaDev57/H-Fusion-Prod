@@ -425,7 +425,7 @@ runs:
             sed "s|{{ACTION_MAJOR_VERSION}}|$ACTION_MAJOR_VERSION|g" | \
             sed "s|{{NEW_MINOR_VERSION}}|$NEW_MINOR_VERSION|g" | \
             sed "s|{{PLATFORM_HELMFILES_PR}}|$PLATFORM_HELMFILES_PR|g" | \
-            sed "s|{{PUBLIC_REPO_PR_URL}}|$PUBLIC_REPO_PR_URL|g") | \
+            sed "s|{{PUBLIC_REPO_PR_URL}}|$PUBLIC_REPO_PR_URL|g" | \
             sed "s|{{COMPARE_URL}}|$COMPARE_URL|g")
 
           # Create Jira payload with optional Team field
