@@ -1,5 +1,9 @@
 {
   "_comment": "Mapping exceptions for actions that do not follow standard naming patterns. Standard patterns: gha-* -> cloudbees-io-gha/* (remove 'gha-' prefix), *-actions -> cloudbees-io/* (remove '-actions' suffix). Only exceptions are listed here.",
+  "skip": [
+    "jfrog-actions",
+    "assets-jfrog-artifactory"
+  ],
   "exceptions": {
     "anchore-container-actions": "cloudbees-io/anchore-scan-container",
     "ansible-actions": "cloudbees-io/ansible-run-job",

@@ -91,6 +91,34 @@ runs:
 
         if [ -z "$CHANGED_ACTIONS" ]; then
           echo "ℹ️  No changed actions detected"
+
+          # Generate evidence report for no changes
+          CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
+          CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
+          CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
+          GENERATED_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
+
+          cat > "$EVIDENCE_FILE" << EVIDENCE_NO_CHANGES
+        ## Sync Public Action Versions - Evidence Report
+
+        **Generated:** $GENERATED_TIME
+        **Workflow Run:** $CLOUDBEES_RUN_ID
+        **Commit:** $CLOUDBEES_COMMIT_SHA
+        **Branch:** $CLOUDBEES_BRANCH
+
+        ### Summary
+
+        ℹ️ No action version changes detected in this commit.
+
+        ---
+
+        **Repository:** calculi-corp/platform-helmfiles
+        EVIDENCE_NO_CHANGES
+
+          if [ -f "$EVIDENCE_FILE" ]; then
+            cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
+          fi
+
           exit 0
         fi
 
@@ -114,6 +142,18 @@ runs:
 
           echo "📦 Action: $ACTION_NAME"
           echo "🏷️  New version: $NEW_VERSION"
+
+          # Check if action should be skipped
+          if [ -f "$MAPPING_FILE" ]; then
+            IS_SKIPPED=$(jq -r ".skip // [] | map(select(. == \"$ACTION_NAME\")) | length > 0" "$MAPPING_FILE" 2>/dev/null || echo "false")
+            if [ "$IS_SKIPPED" = "true" ]; then
+              echo "⚠️  Action $ACTION_NAME is in skip list (no public repo exists)"
+              echo "⚠️  Skipping PR creation for this action."
+              echo ""
+              echo "⚠️ No public repo (skipped)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi
+          fi
 
           # Check for mapping exceptions first
           PUBLIC_REPO=""
@@ -202,14 +242,26 @@ runs:
 
           # Check if public repository exists
           echo "🔄 Checking if public repository exists..."
-          if ! gh api repos/"$PUBLIC_REPO" --silent 2>/dev/null; then
-            echo "⚠️  WARNING: Public repository $PUBLIC_REPO does not exist or is not accessible."
+          REPO_INFO=$(gh api repos/"$PUBLIC_REPO" 2>/dev/null)
+          if [ -z "$REPO_INFO" ]; then
+            echo "⚠️  WARNING: Repository $PUBLIC_REPO does not exist or is not accessible."
             echo "⚠️  Skipping PR creation for this action."
             echo ""
             echo "❌ Repo not accessible" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-          echo "✅ Public repository $PUBLIC_REPO exists"
+
+          # Check if repository is public
+          REPO_PRIVATE=$(echo "$REPO_INFO" | jq -r '.private')
+          if [ "$REPO_PRIVATE" = "true" ]; then
+            echo "⚠️  WARNING: Repository $PUBLIC_REPO is PRIVATE, not PUBLIC."
+            echo "⚠️  This script only syncs to public repositories."
+            echo "⚠️  Skipping PR creation for this action."
+            echo ""
+            echo "❌ Private repo (skipped)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+            continue
+          fi
+          echo "✅ Public repository $PUBLIC_REPO exists and is public"
 
           BRANCH="update-image-${NEW_VERSION}"
 
@@ -331,6 +383,21 @@ runs:
             # Small delay to ensure branch is available
             sleep 2
           else
+            # Branch exists - check if it already has the correct version
+            echo "🔄 Branch $BRANCH already exists, checking if it has the correct version..."
+            BRANCH_FILE_CONTENT=$(gh api repos/"$PUBLIC_REPO"/contents/"$ACTION_FILE_PATH"?ref="$BRANCH" --jq '.content' | base64 -d 2>/dev/null || echo "")
+            if [ -n "$BRANCH_FILE_CONTENT" ]; then
+              BRANCH_IMAGE=$(echo "$BRANCH_FILE_CONTENT" | grep -E "^\s*(image|uses):" | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+              BRANCH_VERSION=$(echo "$BRANCH_IMAGE" | grep -oE '[^:]+$')
+
+              if [ "$BRANCH_VERSION" = "$NEW_VERSION" ]; then
+                echo "✅ Branch $BRANCH already has version $NEW_VERSION. No update needed."
+                echo ""
+                echo "✅ Already up-to-date" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+                continue
+              fi
+            fi
+
             echo "🔄 Updating $BRANCH in $PUBLIC_REPO to match $DEFAULT_BRANCH..."
             gh api repos/"$PUBLIC_REPO"/git/refs/heads/"$BRANCH" -X PATCH -f sha="$LATEST_MAIN_SHA" -F "force=true" || exit 1
             echo "✅ Branch $BRANCH updated to match $DEFAULT_BRANCH"
