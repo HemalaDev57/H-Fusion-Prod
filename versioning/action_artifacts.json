@@ -3,10 +3,10 @@
   "public": {
     "actions": {
       "anchore-container-actions": "main-75cfec730325dd5d516ca56e560cdd23e077a87d",
-      "appdynamics-actions": "main-b92018d151ae57bab0e5245b591798e9cf1be4bb",
+      "appdynamics-actions": "main-a92018d151ae57bab0e5245b591798e9cf1be4bb",
       "aquasec-actions": "main-d1e13c225d38b835b0f99354e6ced0484acd6356",
       "argocd-actions": "main-32d1f8dc24177b68405e488248a73b6512982c89",
-      "argoworkflows-actions": "main-1f0560f5201f1c340a6284fba415de225db77356",
+      "argoworkflows-actions": "main-1b0560f5201f1c340a6284fba415de225db77356",
       "assets-aws-ecr": "29e5e22b59da47505145700c81eade6010d62406",
       "assets-jfrog-artifactory": "f57e72d4e9e991bcf06e2758d91986545bc2be9e",
       "assets-bitbucket-server": "d359ed236bd0df1475147ee8ba64b4b97a9fb1cb",
@@ -35,7 +35,7 @@
       "aws-codepipeline-invoke-actions": "main-f5e925748284c32a7b986244a2e030a3cbaa724f",
       "bamboo-actions": "main-f73d9cfb284ca1c58bcd6bcb79e620cbce9858c5",
       "bitbucket-actions": "main-c81a71fa0a9cbb72c1105659159fb560c4ce2c4d",
-      "bundled-sonarqube-sast-actions": "main-c6d091367cda6a695322c43fe87dbd3ccf973c9d",
+      "bundled-sonarqube-sast-actions": "main-a6d091367cda6a695322c43fe87dbd3ccf973c9d",
       "cb-utils": "main-0.1.59",
       "cbci-actions": "main-041958959862e572fdbd2e66e07c37363c2eb07e",
       "checkmarx-sast-actions": "main-cfb1452594e9b281072fe8ed3b5976881ef801e3",
@@ -63,7 +63,7 @@
       "jfrog-actions": "main-a55a44f6cf424b1e315bba31bbd0b9d03c645237",
       "jfrog-pipeline-actions": "main-4a894447e190649dd1c8db4471f9f827c66706ce",
       "jfrog-xray-container-actions": "main-170c33a7a05094f2a2af1b504c52e858012ddcab",
-      "kaniko-action": "723a7b24f2c753c5364b577b580a2300a0f283b7",
+      "kaniko-action": "523a7b24f2c753c5364b577b580a2300a0f283b7",
       "kubernetes-resource-actions": "main-6ebc0c5ff76d869a8e3f974b59e97835bfc7e9da",
       "kustomize-actions": "main-4116c2bb1d6c9c49489ff883bed2514d02d6b0b3",
       "lambda-create-function": "main-035f49b376fb38cf1a3b86bbf66503fd2dc31ef3",
@@ -91,7 +91,7 @@
       "trivy-container-actions": "main-b4cf33cb31c7b494588e7982831f4071b0fb3707",
       "trufflehog-secret-actions": "main-14d9b3750a316a913f6d6010da272541532ae976",
       "workflow-advisor": "0.0.271",
-      "workflow-dispatch-actions": "main-2f55f8785ae75ce727b0d57725dd741e6ba06b4e",
+      "workflow-dispatch-actions": "main-2f55f8785ae75ce727b0d57725dd741e6ba06b4a",
       "zap-dast-actions": "main-b0ba1a97112a8979347f8d115d25c6d7cc7cbf26"
     }
   }

@@ -1,19 +1,29 @@
 {
   "_comment": "Mapping exceptions for actions that do not follow standard naming patterns. Standard patterns: gha-* -> cloudbees-io-gha/* (remove 'gha-' prefix), *-actions -> cloudbees-io/* (remove '-actions' suffix). Only exceptions are listed here.",
+  "skip": [
+    "jfrog-actions",
+    "nexusiq-action",
+    "trufflehog-secret-actions"
+  ],
   "exceptions": {
     "anchore-container-actions": "cloudbees-io/anchore-scan-container",
+    "appdynamics-actions": "cloudbees-io/appdynamics-verify-deploy",
     "ansible-actions": "cloudbees-io/ansible-run-job",
     "aquasec-actions": "cloudbees-io/aquasec-scan-container",
     "argocd-actions": "cloudbees-io/argocd-run-workflow",
+    "argoworkflows-actions": "cloudbees-io/argoworkflows-run-workflow",
     "aws-codedeploy-invoke-actions": "cloudbees-io/aws-codedeploy-invoke-deployment",
     "aws-codepipeline-invoke-actions": "cloudbees-io/aws-codepipeline-run-pipeline",
     "aws-elastic-beanstalk-invoke-actions": "cloudbees-io/aws-elastic-beanstalk-invoke-deployment",
     "bamboo-actions": "cloudbees-io/bamboo-run-project",
     "bitbucket-actions": "cloudbees-io/bitbucket-run-pipeline",
+    "bundled-sonarqube-sast-actions": "cloudbees-io/sonarqube-bundled-sast-scan-code",
     "cbci-actions": "cloudbees-io/cbci-run-job",
     "checkmarx-sast-actions": "cloudbees-io/checkmarx-sast-scan-code",
     "circleci-actions": "cloudbees-io/circleci-run-workflow",
     "conjur-actions": "cloudbees-io/cyberark-conjur-fetch-secrets",
+    "ecs-deploy-task-definition-action": "cloudbees-io/ecs-deploy-task-definition",
+    "ecs-render-task-definition-action": "cloudbees-io/ecs-render-task-definition",
     "findsecbugs-sast-actions": "cloudbees-io/findsecbugs-sast-scan-code",
     "gha-run-cbp-workflow": "cloudbees-io-gha/run-cloudbees-workflow",
     "github-security-sast-actions": "cloudbees-io/github-security-sast-scan-code",
@@ -24,6 +34,7 @@
     "jenkins-actions": "cloudbees-io/jenkins-run-job",
     "jfrog-pipeline-actions": "cloudbees-io/jfrog-run-pipeline",
     "jfrog-xray-container-actions": "cloudbees-io/jfrog-xray-scan-container",
+    "kaniko-action": "cloudbees-io/kaniko",
     "kubernetes-resource-actions": "cloudbees-io/kubernetes-create-resource",
     "kustomize-actions": "cloudbees-io/kustomize-deploy",
     "lambda-create-function": "cloudbees-io/lambda-create-function",
@@ -47,6 +58,7 @@
     "teamcity-invoke-actions": "cloudbees-io/teamcity-run-project",
     "tosca-actions": "cloudbees-io/tosca-run-job",
     "trivy-container-actions": "cloudbees-io/trivy-scan-container",
+    "workflow-dispatch-actions": "cloudbees-io/workflows-dispatch",
     "zap-dast-actions": "cloudbees-io/zap-dast-scan-environment"
   }
 }
