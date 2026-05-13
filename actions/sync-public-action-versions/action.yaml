@@ -647,10 +647,12 @@ runs:
               "$JIRA_BASE_URL/rest/api/3/issue" 2>&1 || echo '{"error":"curl failed"}')
           elif command -v wget >/dev/null 2>&1; then
             echo "🔧 Using wget for Jira API call"
+            # jira-api-token should be in "email:api_token" format, encode it like curl does
+            JIRA_AUTH_ENCODED=$(echo -n "${{ inputs.jira-api-token }}" | base64 -w 0 2>/dev/null || echo -n "${{ inputs.jira-api-token }}" | base64)
             echo "$JIRA_PAYLOAD" > /tmp/jira_payload.json
             JIRA_RESPONSE=$(wget -q -O - \
               --header="Content-Type: application/json" \
-              --header="Authorization: Basic $(echo -n "${{ inputs.jira-api-token }}" | base64)" \
+              --header="Authorization: Basic $JIRA_AUTH_ENCODED" \
               --post-file=/tmp/jira_payload.json \
               "$JIRA_BASE_URL/rest/api/3/issue" 2>&1 || echo '{"error":"wget failed"}')
             rm -f /tmp/jira_payload.json
