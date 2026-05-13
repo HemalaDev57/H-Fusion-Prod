@@ -1,9 +1,5 @@
 {
   "_comment": "Mapping exceptions for actions that do not follow standard naming patterns. Standard patterns: gha-* -> cloudbees-io-gha/* (remove 'gha-' prefix), *-actions -> cloudbees-io/* (remove '-actions' suffix). Exceptions can be a string for single repo or array for multiple repos. Only exceptions are listed here.",
-  "skip": [
-    "nexusiq-action",
-    "trufflehog-secret-actions"
-  ],
   "exceptions": {
     "anchore-container-actions": "cloudbees-io/anchore-scan-container",
     "appdynamics-actions": "cloudbees-io/appdynamics-verify-deploy",
