@@ -1,0 +1,179 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Action Name: ",
+          "marks": [{ "type": "strong" }]
+        },
+        {
+          "type": "text",
+          "text": "{{PUBLIC_REPO}}"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Major version to be released: ",
+          "marks": [{ "type": "strong" }]
+        },
+        {
+          "type": "text",
+          "text": "{{ACTION_MAJOR_VERSION}}"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Minor version to be released: ",
+          "marks": [{ "type": "strong" }]
+        },
+        {
+          "type": "text",
+          "text": "{{NEW_MINOR_VERSION}}"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "PR to platform-helmfiles with the version bump - "
+        },
+        {
+          "type": "text",
+          "text": "{{PLATFORM_HELMFILES_PR}}",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "{{PLATFORM_HELMFILES_PR}}"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Code changes done on the action which is part of release - "
+        },
+        {
+          "type": "text",
+          "text": "{{COMPARE_URL}}",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "{{COMPARE_URL}}"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Draft PR to the public repo - "
+        },
+        {
+          "type": "text",
+          "text": "{{PUBLIC_REPO_PR_URL}}",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "{{PUBLIC_REPO_PR_URL}}"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Please complete the following tasks for the public action repository:"
+        }
+      ]
+    },
+    {
+      "type": "orderedList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Merge the DRAFT PR once the docker image is available in public ECR - "
+                },
+                {
+                  "type": "text",
+                  "text": "{{PUBLIC_REPO_PR_URL}}",
+                  "marks": [
+                    {
+                      "type": "link",
+                      "attrs": {
+                        "href": "{{PUBLIC_REPO_PR_URL}}"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Create a major tag and major release - {{ACTION_MAJOR_VERSION}}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Create a minor tag and minor release - {{NEW_MINOR_VERSION}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
