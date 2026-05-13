@@ -165,16 +165,29 @@ runs:
 
           # If no exception found, use standard naming patterns
           if [ -z "$PUBLIC_REPOS" ]; then
+            # Check if action follows standard naming convention
+            HAS_STANDARD_NAMING=false
+
             # For GHA actions: gha-* -> cloudbees-io-gha/*
             # For CBP actions: *-actions -> cloudbees-io/*
             if echo "$ACTION_NAME" | grep -q "^gha-"; then
               # GHA actions: gha-register-deployed-artifact -> register-deployed-artifact
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/^gha-//')
               PUBLIC_REPOS="cloudbees-io-gha/$PUBLIC_REPO_NAME"
-            else
+              HAS_STANDARD_NAMING=true
+            elif echo "$ACTION_NAME" | grep -q -- "-actions$"; then
               # CBP actions: github-actions -> github
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
               PUBLIC_REPOS="cloudbees-io/$PUBLIC_REPO_NAME"
+              HAS_STANDARD_NAMING=true
+            else
+              # Action doesn't follow naming convention and has no exception mapping
+              echo "⚠️  WARNING: Action $ACTION_NAME doesn't follow standard naming convention (gha-* or *-actions)"
+              echo "⚠️  and has no exception mapping in action-repo-mapping.json"
+              echo "⚠️  Skipping PR creation for this action."
+              echo ""
+              echo "⚠️ Non-standard naming, no mapping" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
             fi
           fi
 
