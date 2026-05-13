@@ -32,9 +32,9 @@
     "heroku-actions": "cloudbees-io/heroku-run-job",
     "jenkins-actions": "cloudbees-io/jenkins-run-job",
     "jfrog-actions": [
-      "cloudbees-io/jfrog-artifactory-publish-artifact",
-      "cloudbees-io/jfrog-artifactory-download-artifact",
-      "cloudbees-io/jfrog-artifactory-build-info-publish"
+      "cloudbees-io/jfrog-artifactory-upload-file",
+      "cloudbees-io/jfrog-artifactory-promote-image",
+      "cloudbees-io/jfrog-artifactory-download-file"
     ],
     "jfrog-pipeline-actions": "cloudbees-io/jfrog-run-pipeline",
     "jfrog-xray-container-actions": "cloudbees-io/jfrog-xray-scan-container",
@@ -46,6 +46,10 @@
     "mend-sast-actions": "cloudbees-io/mend-sast-scan-code",
     "mend-sca-actions": "cloudbees-io/mend-sca-scan-dependency",
     "newrelic-actions": "cloudbees-io/newrelic-verify-deploy",
+    "nexusiq-actions" : [
+      "cloudbees-io/nexusiq-sast-scan-code",
+      "cloudbees-io/nexusiq-scan-container"
+    ],
     "octopus-actions": "cloudbees-io/octopus-run-project",
     "openshift-actions": "cloudbees-io/openshift-invoke-deployment",
     "plugin-blackduck-sca": "cloudbees-io/blackduck-sca-scan-dependency",
@@ -62,6 +66,11 @@
     "teamcity-invoke-actions": "cloudbees-io/teamcity-run-project",
     "tosca-actions": "cloudbees-io/tosca-run-job",
     "trivy-container-actions": "cloudbees-io/trivy-scan-container",
+    "trufflehog-secret-actions": [
+      "cloudbees-io/trufflehog-secret-scan-s3",
+      "trufflehog-secret-scan-container",
+      "cloudbees-io/trufflehog-secret-scan-code"
+    ],
     "workflow-dispatch-actions": "cloudbees-io/workflows-dispatch",
     "zap-dast-actions": "cloudbees-io/zap-dast-scan-environment"
   }
