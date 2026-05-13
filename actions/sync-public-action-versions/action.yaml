@@ -636,11 +636,26 @@ runs:
               }')
           fi
 
-          JIRA_RESPONSE=$(curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -u "${{ inputs.jira-api-token }}" \
-            -d "$JIRA_PAYLOAD" \
-            "$JIRA_BASE_URL/rest/api/3/issue")
+          # Check which HTTP client is available
+          if command -v curl >/dev/null 2>&1; then
+            JIRA_RESPONSE=$(curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -u "${{ inputs.jira-api-token }}" \
+              -d "$JIRA_PAYLOAD" \
+              "$JIRA_BASE_URL/rest/api/3/issue")
+          elif command -v wget >/dev/null 2>&1; then
+            echo "$JIRA_PAYLOAD" > /tmp/jira_payload.json
+            JIRA_RESPONSE=$(wget -q -O - \
+              --header="Content-Type: application/json" \
+              --header="Authorization: Basic $(echo -n "${{ inputs.jira-api-token }}" | base64)" \
+              --post-file=/tmp/jira_payload.json \
+              "$JIRA_BASE_URL/rest/api/3/issue" 2>&1)
+            rm -f /tmp/jira_payload.json
+          else
+            echo "⚠️ Neither curl nor wget available in container"
+            echo "⚠️ Cannot create Jira ticket"
+            JIRA_RESPONSE="{}"
+          fi
 
           JIRA_TICKET_KEY=$(echo "$JIRA_RESPONSE" | jq -r '.key // empty')
 
