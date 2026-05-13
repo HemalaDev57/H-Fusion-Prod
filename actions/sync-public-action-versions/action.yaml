@@ -155,29 +155,46 @@ runs:
             fi
           fi
 
-          # Check for mapping exceptions first
-          PUBLIC_REPO=""
+          # Check for mapping exceptions (can be string or array)
+          PUBLIC_REPOS=""
 
           if [ -f "$MAPPING_FILE" ]; then
-            PUBLIC_REPO=$(jq -r ".exceptions[\"$ACTION_NAME\"] // empty" "$MAPPING_FILE" 2>/dev/null || echo "")
+            EXCEPTION_VALUE=$(jq -r ".exceptions[\"$ACTION_NAME\"] // empty" "$MAPPING_FILE" 2>/dev/null || echo "")
+            if [ -n "$EXCEPTION_VALUE" ]; then
+              # Check if it's an array
+              IS_ARRAY=$(echo "$EXCEPTION_VALUE" | jq -r 'if type == "array" then "true" else "false" end' 2>/dev/null || echo "false")
+              if [ "$IS_ARRAY" = "true" ]; then
+                # Array of repos - extract as space-separated list
+                PUBLIC_REPOS=$(jq -r ".exceptions[\"$ACTION_NAME\"] | .[]" "$MAPPING_FILE" 2>/dev/null | tr '\n' ' ')
+              else
+                # Single repo string
+                PUBLIC_REPOS="$EXCEPTION_VALUE"
+              fi
+            fi
           fi
 
           # If no exception found, use standard naming patterns
-          if [ -z "$PUBLIC_REPO" ]; then
+          if [ -z "$PUBLIC_REPOS" ]; then
             # For GHA actions: gha-* -> cloudbees-io-gha/*
             # For CBP actions: *-actions -> cloudbees-io/*
             if echo "$ACTION_NAME" | grep -q "^gha-"; then
               # GHA actions: gha-register-deployed-artifact -> register-deployed-artifact
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/^gha-//')
-              PUBLIC_REPO="cloudbees-io-gha/$PUBLIC_REPO_NAME"
+              PUBLIC_REPOS="cloudbees-io-gha/$PUBLIC_REPO_NAME"
             else
               # CBP actions: github-actions -> github
               PUBLIC_REPO_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
-              PUBLIC_REPO="cloudbees-io/$PUBLIC_REPO_NAME"
+              PUBLIC_REPOS="cloudbees-io/$PUBLIC_REPO_NAME"
             fi
           fi
 
-          echo "🎯 Target public repository: $PUBLIC_REPO"
+          echo "🎯 Target public repository(s): $PUBLIC_REPOS"
+
+          # Process each public repository
+          for PUBLIC_REPO in $PUBLIC_REPOS; do
+            echo ""
+            echo "  📍 Processing repository: $PUBLIC_REPO"
+            echo ""
 
           # Determine which installation ID to use based on the organization
           echo "🔄 Determining GitHub App installation ID for organization..."
@@ -507,8 +524,12 @@ runs:
           echo "✅ Draft pull request created at https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
           echo ""
 
-          # Update evidence with PR info
-          echo "https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+          # Update evidence with PR info (append for multiple repos)
+          if [ -f "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" ] && [ "$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url")" != "-" ]; then
+            echo "$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"), https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+          else
+            echo "https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
+          fi
           echo "✅ PR Created" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
 
           # Get platform-helmfiles PR information
@@ -614,7 +635,9 @@ runs:
             echo "Response: $JIRA_RESPONSE"
           fi
 
-        done
+          done  # End of PUBLIC_REPO loop
+
+        done  # End of ACTION_NAME loop
 
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "Summary"
@@ -672,8 +695,20 @@ runs:
             NEW_VER_SHORT="$(echo "$NEW_VER" | head -c 32)..."
           fi
 
-          # Format PR URL for markdown
+          # Format PR URL(s) for markdown (handle comma-separated multiple URLs)
           case "$PR_URL" in
+            *,*)
+              # Multiple URLs - format each
+              PR_LINK=""
+              for URL in $(echo "$PR_URL" | tr ',' ' '); do
+                PR_NUM=$(echo "$URL" | grep -oE '[0-9]+$')
+                if [ -n "$PR_LINK" ]; then
+                  PR_LINK="$PR_LINK, [PR #$PR_NUM]($URL)"
+                else
+                  PR_LINK="[PR #$PR_NUM]($URL)"
+                fi
+              done
+              ;;
             https://*)
               PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
               PR_LINK="[PR #$PR_NUMBER]($PR_URL)"

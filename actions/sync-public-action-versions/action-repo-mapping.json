@@ -1,7 +1,6 @@
 {
-  "_comment": "Mapping exceptions for actions that do not follow standard naming patterns. Standard patterns: gha-* -> cloudbees-io-gha/* (remove 'gha-' prefix), *-actions -> cloudbees-io/* (remove '-actions' suffix). Only exceptions are listed here.",
+  "_comment": "Mapping exceptions for actions that do not follow standard naming patterns. Standard patterns: gha-* -> cloudbees-io-gha/* (remove 'gha-' prefix), *-actions -> cloudbees-io/* (remove '-actions' suffix). Exceptions can be a string for single repo or array for multiple repos. Only exceptions are listed here.",
   "skip": [
-    "jfrog-actions",
     "nexusiq-action",
     "trufflehog-secret-actions"
   ],
@@ -32,6 +31,11 @@
     "harness-actions": "cloudbees-io/harness-run-pipeline",
     "heroku-actions": "cloudbees-io/heroku-run-job",
     "jenkins-actions": "cloudbees-io/jenkins-run-job",
+    "jfrog-actions": [
+      "cloudbees-io/jfrog-artifactory-publish-artifact",
+      "cloudbees-io/jfrog-artifactory-download-artifact",
+      "cloudbees-io/jfrog-artifactory-build-info-publish"
+    ],
     "jfrog-pipeline-actions": "cloudbees-io/jfrog-run-pipeline",
     "jfrog-xray-container-actions": "cloudbees-io/jfrog-xray-scan-container",
     "kaniko-action": "cloudbees-io/kaniko",
