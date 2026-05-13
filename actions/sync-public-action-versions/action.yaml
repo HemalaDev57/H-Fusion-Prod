@@ -571,30 +571,41 @@ runs:
           JIRA_SUMMARY="[SRE] Merge PR and create release tag for $ACTION_NAME with version $ACTION_MAJOR_VERSION and $NEW_MINOR_VERSION"
           PUBLIC_REPO_PR_URL="https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
 
-          # Load Jira description template and replace placeholders
-          TEMPLATE_FILE="actions/sync-public-action-versions/jira-ticket-template.json"
-          if [ ! -f "$TEMPLATE_FILE" ]; then
-            echo "⚠️ Jira template file not found: $TEMPLATE_FILE"
-            echo "⚠️ Skipping Jira ticket creation for this action."
-            continue
-          fi
-
-          JIRA_DESCRIPTION=$(cat "$TEMPLATE_FILE" | \
-            sed "s|{{PUBLIC_REPO}}|$PUBLIC_REPO|g" | \
-            sed "s|{{ACTION_MAJOR_VERSION}}|$ACTION_MAJOR_VERSION|g" | \
-            sed "s|{{NEW_MINOR_VERSION}}|$NEW_MINOR_VERSION|g" | \
-            sed "s|{{PLATFORM_HELMFILES_PR}}|$PLATFORM_HELMFILES_PR|g" | \
-            sed "s|{{PUBLIC_REPO_PR_URL}}|$PUBLIC_REPO_PR_URL|g" | \
-            sed "s|{{COMPARE_URL}}|$COMPARE_URL|g")
+          # Build Jira description using jq to safely handle variables
+          JIRA_DESCRIPTION=$(jq -n \
+            --arg repo "$PUBLIC_REPO" \
+            --arg major "$ACTION_MAJOR_VERSION" \
+            --arg minor "$NEW_MINOR_VERSION" \
+            --arg helmfiles_pr "$PLATFORM_HELMFILES_PR" \
+            --arg pr_url "$PUBLIC_REPO_PR_URL" \
+            --arg compare "$COMPARE_URL" \
+            '{
+              "type": "doc",
+              "version": 1,
+              "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "Action Name: ", "marks": [{"type": "strong"}]}, {"type": "text", "text": $repo}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "Major version to be released: ", "marks": [{"type": "strong"}]}, {"type": "text", "text": $major}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "Minor version to be released: ", "marks": [{"type": "strong"}]}, {"type": "text", "text": $minor}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "PR to platform-helmfiles with the version bump - "}, {"type": "text", "text": $helmfiles_pr, "marks": [{"type": "link", "attrs": {"href": $helmfiles_pr}}]}]},
+                (if $compare != "" then {"type": "paragraph", "content": [{"type": "text", "text": "Code changes done on the action which is part of release - "}, {"type": "text", "text": $compare, "marks": [{"type": "link", "attrs": {"href": $compare}}]}]} else empty end),
+                {"type": "paragraph", "content": [{"type": "text", "text": "Draft PR to the public repo - "}, {"type": "text", "text": $pr_url, "marks": [{"type": "link", "attrs": {"href": $pr_url}}]}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "Please complete the following tasks for the public action repository:"}]},
+                {"type": "orderedList", "content": [
+                  {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Merge the DRAFT PR once the docker image is available in public ECR - "}, {"type": "text", "text": $pr_url, "marks": [{"type": "link", "attrs": {"href": $pr_url}}]}]}]},
+                  {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": ("Create a major tag and major release - " + $major)}]}]},
+                  {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": ("Create a minor tag and minor release - " + $minor)}]}]}
+                ]}
+              ]
+            }')
 
           # Create Jira payload with optional Team field
           if [ -n "$JIRA_TEAM_FIELD_ID" ] && [ -n "$JIRA_TEAM_ID" ]; then
             echo "📋 Creating ticket to team ID: $JIRA_TEAM_ID (field: $JIRA_TEAM_FIELD_ID)"
 
-            # Use process substitution to avoid shell expansion issues
+            # Now we can use --argjson safely since JIRA_DESCRIPTION is built with jq
             JIRA_PAYLOAD=$(jq -n \
               --arg summary "$JIRA_SUMMARY" \
-              --slurpfile desc_array <(echo "$JIRA_DESCRIPTION") \
+              --argjson description "$JIRA_DESCRIPTION" \
               --arg team_field "$JIRA_TEAM_FIELD_ID" \
               --arg team_id "$JIRA_TEAM_ID" \
               '{
@@ -602,7 +613,7 @@ runs:
                   {
                     project: { key: "CBP" },
                     summary: $summary,
-                    description: $desc_array[0],
+                    description: $description,
                     issuetype: { name: "Task" },
                     labels: ["sre", "automation", "public-actions-release"]
                   } + {
@@ -613,12 +624,12 @@ runs:
           else
             JIRA_PAYLOAD=$(jq -n \
               --arg summary "$JIRA_SUMMARY" \
-              --slurpfile desc_array <(echo "$JIRA_DESCRIPTION") \
+              --argjson description "$JIRA_DESCRIPTION" \
               '{
                 fields: {
                   project: { key: "CBP" },
                   summary: $summary,
-                  description: $desc_array[0],
+                  description: $description,
                   issuetype: { name: "Task" },
                   labels: ["sre", "automation", "public-actions-release"]
                 }
