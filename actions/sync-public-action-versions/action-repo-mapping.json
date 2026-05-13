@@ -64,7 +64,7 @@
     "trivy-container-actions": "cloudbees-io/trivy-scan-container",
     "trufflehog-secret-actions": [
       "cloudbees-io/trufflehog-secret-scan-s3",
-      "trufflehog-secret-scan-container",
+      "cloudbees-io/trufflehog-secret-scan-container",
       "cloudbees-io/trufflehog-secret-scan-code"
     ],
     "workflow-dispatch-actions": "cloudbees-io/workflows-dispatch",
