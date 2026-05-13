@@ -591,19 +591,18 @@ runs:
           if [ -n "$JIRA_TEAM_FIELD_ID" ] && [ -n "$JIRA_TEAM_ID" ]; then
             echo "📋 Creating ticket to team ID: $JIRA_TEAM_ID (field: $JIRA_TEAM_FIELD_ID)"
 
-            # Use a temp file to avoid shell expansion issues with complex JSON
-            echo "$JIRA_DESCRIPTION" > /tmp/jira_desc_$$.json
-            JIRA_PAYLOAD=$(jq -n \
+            # Build JSON using jq instead of shell variables to avoid expansion issues
+            JIRA_PAYLOAD=$(echo "$JIRA_DESCRIPTION" | jq -n \
               --arg summary "$JIRA_SUMMARY" \
-              --slurpfile desc_array /tmp/jira_desc_$$.json \
               --arg team_field "$JIRA_TEAM_FIELD_ID" \
               --arg team_id "$JIRA_TEAM_ID" \
+              --argjson description "$(cat)" \
               '{
                 fields: (
                   {
                     project: { key: "CBP" },
                     summary: $summary,
-                    description: $desc_array[0],
+                    description: $description,
                     issuetype: { name: "Task" },
                     labels: ["sre", "automation", "public-actions-release"]
                   } + {
@@ -611,22 +610,19 @@ runs:
                   }
                 )
               }')
-            rm -f /tmp/jira_desc_$$.json
           else
-            echo "$JIRA_DESCRIPTION" > /tmp/jira_desc_$$.json
-            JIRA_PAYLOAD=$(jq -n \
+            JIRA_PAYLOAD=$(echo "$JIRA_DESCRIPTION" | jq -n \
               --arg summary "$JIRA_SUMMARY" \
-              --slurpfile desc_array /tmp/jira_desc_$$.json \
+              --argjson description "$(cat)" \
               '{
                 fields: {
                   project: { key: "CBP" },
                   summary: $summary,
-                  description: $desc_array[0],
+                  description: $description,
                   issuetype: { name: "Task" },
                   labels: ["sre", "automation", "public-actions-release"]
                 }
               }')
-            rm -f /tmp/jira_desc_$$.json
           fi
 
           JIRA_RESPONSE=$(curl -s -X POST \
