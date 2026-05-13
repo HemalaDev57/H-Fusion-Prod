@@ -320,13 +320,13 @@ runs:
           # Extract current image version - match action name in image path
           # Look for docker://*/actions/${ACTION_NAME}: pattern
           IMAGE_PATTERN="actions/${ACTION_NAME}:"
-          CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+          CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
 
           # If not found, try without -actions suffix (e.g., plugin-blackduck-sca)
           if [ -z "$CURRENT_IMAGE" ]; then
             ALT_ACTION_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
             ALT_IMAGE_PATTERN="actions/${ALT_ACTION_NAME}:"
-            CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${ALT_IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+            CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${ALT_IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
             if [ -n "$CURRENT_IMAGE" ]; then
               IMAGE_PATTERN="$ALT_IMAGE_PATTERN"
             fi
@@ -344,7 +344,7 @@ runs:
             fi
 
             # Check for any docker:// image (fallback for non-standard naming)
-            CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
+            CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
             if [ -z "$CURRENT_IMAGE" ]; then
               echo "⚠️  WARNING: No docker:// image found for actions/${ACTION_NAME}"
               echo "⚠️  This action may use embedded plugins or different image format."
@@ -365,7 +365,7 @@ runs:
           echo "📸 Current image: $CURRENT_IMAGE"
 
           # Extract current version from image
-          CURRENT_VERSION=$(echo "$CURRENT_IMAGE" | grep -oE '[^:]+$')
+          CURRENT_VERSION=$(echo "$CURRENT_IMAGE" | grep -oE '[^:]+$' | xargs)
           echo "   Current version: $CURRENT_VERSION"
 
           # Check if already up-to-date BEFORE building new image
@@ -379,7 +379,7 @@ runs:
           # Determine the new image path
           if echo "$CURRENT_IMAGE" | grep -q "^docker://"; then
             # Extract ECR registry path from current image
-            REGISTRY_PATH=$(echo "$CURRENT_IMAGE" | sed 's|^docker://||' | sed 's|:.*$||')
+            REGISTRY_PATH=$(echo "$CURRENT_IMAGE" | sed 's|^docker://||' | sed 's|:.*$||' | xargs)
             NEW_IMAGE="docker://$REGISTRY_PATH:$NEW_VERSION"
           else
             echo "⚠️  WARNING: Unexpected image format: $CURRENT_IMAGE"
