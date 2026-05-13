@@ -89,7 +89,7 @@
       "teamcity-invoke-actions": "main-d33f3ac80487adaf2743c0a8268ab528cd7847de",
       "tosca-actions": "main-0c5f3100ea4661c873231a027206782ad3c1cbfc",
       "trivy-container-actions": "main-b4cf33cb31c7b494588e7982831f4071b0fb3707",
-      "trufflehog-secret-actions": "main-24d9b3750a316a913f6d6010da272541532ae976",
+      "trufflehog-secret-actions": "main-22d9b3750a316a913f6d6010da272541532ae976",
       "workflow-advisor": "0.0.271",
       "workflow-dispatch-actions": "main-2f55f8785ae75ce727b0d57725dd741e6ba06b4a",
       "zap-dast-actions": "main-b0ba1a97111a8879347f8d115d25c6d7cc7cbf26"
