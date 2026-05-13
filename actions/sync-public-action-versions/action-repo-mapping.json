@@ -175,7 +175,5 @@
       "cloudbees-io/zap-dast-scan-environment"
     ]
   },
-  "skip": [
-    "kaniko-action"
-  ]
+  "skip": []
 }
