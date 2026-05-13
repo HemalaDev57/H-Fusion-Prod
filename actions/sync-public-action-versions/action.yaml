@@ -591,18 +591,18 @@ runs:
           if [ -n "$JIRA_TEAM_FIELD_ID" ] && [ -n "$JIRA_TEAM_ID" ]; then
             echo "📋 Creating ticket to team ID: $JIRA_TEAM_ID (field: $JIRA_TEAM_FIELD_ID)"
 
-            # Build JSON using jq instead of shell variables to avoid expansion issues
-            JIRA_PAYLOAD=$(echo "$JIRA_DESCRIPTION" | jq -n \
+            # Use process substitution to avoid shell expansion issues
+            JIRA_PAYLOAD=$(jq -n \
               --arg summary "$JIRA_SUMMARY" \
+              --slurpfile desc_array <(echo "$JIRA_DESCRIPTION") \
               --arg team_field "$JIRA_TEAM_FIELD_ID" \
               --arg team_id "$JIRA_TEAM_ID" \
-              --argjson description "$(cat)" \
               '{
                 fields: (
                   {
                     project: { key: "CBP" },
                     summary: $summary,
-                    description: $description,
+                    description: $desc_array[0],
                     issuetype: { name: "Task" },
                     labels: ["sre", "automation", "public-actions-release"]
                   } + {
@@ -611,14 +611,14 @@ runs:
                 )
               }')
           else
-            JIRA_PAYLOAD=$(echo "$JIRA_DESCRIPTION" | jq -n \
+            JIRA_PAYLOAD=$(jq -n \
               --arg summary "$JIRA_SUMMARY" \
-              --argjson description "$(cat)" \
+              --slurpfile desc_array <(echo "$JIRA_DESCRIPTION") \
               '{
                 fields: {
                   project: { key: "CBP" },
                   summary: $summary,
-                  description: $description,
+                  description: $desc_array[0],
                   issuetype: { name: "Task" },
                   labels: ["sre", "automation", "public-actions-release"]
                 }
