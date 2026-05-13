@@ -90,9 +90,6 @@
     "jfrog-xray-container-actions": [
       "cloudbees-io/jfrog-xray-scan-container"
     ],
-    "kaniko-action": [
-      "cloudbees-io/kaniko"
-    ],
     "kubernetes-resource-actions": [
       "cloudbees-io/kubernetes-create-resource"
     ],
@@ -177,5 +174,6 @@
     "zap-dast-actions": [
       "cloudbees-io/zap-dast-scan-environment"
     ]
-  }
+  },
+  "skip": []
 }
