@@ -2,7 +2,7 @@
   "_comment": "This file contains versioning information for public and private artifacts, services, and skip lists.",
   "public": {
     "actions": {
-      "anchore-container-actions": "main-15cfec730325dd5d516ca56e560cdd23e077a87d",
+      "anchore-container-actions": "main-15cfea731325dd5d516ca56e560cdd23e077a87d",
       "appdynamics-actions": "main-a92018d151ae57bab0e5245b591798e9cf1be4bb",
       "aquasec-actions": "main-d1e13c225d38b835b0f99354e6ced0484acd6356",
       "argocd-actions": "main-32d1f8dc24177b68405e488248a73b6512982c89",
@@ -34,20 +34,20 @@
       "aws-codedeploy-invoke-actions": "main-e81c0442d68c364681501bbbb8094b39a1931145",
       "aws-codepipeline-invoke-actions": "main-f5e925748284c32a7b986244a2e030a3cbaa724f",
       "bamboo-actions": "main-a73d9cfb284ca1c58bcd6bcb79e620cbce9858c5",
-      "bitbucket-actions": "main-c81a71fa0a9cbb72c1105659159fb560c4ce2c4d",
+      "bitbucket-actions": "main-c81a72aa0a9cbb72c1105659159fb560c4ce2c4d",
       "bundled-sonarqube-sast-actions": "main-a6d091367cda6a695322c43fe87dbd3ccf973c9d",
       "cb-utils": "main-0.1.59",
       "cbci-actions": "main-041958959862e572fdbd2e66e07c37363c2eb07e",
       "checkmarx-sast-actions": "main-cfb1452594e9b281072fe8ed3b5976881ef801e3",
-      "circleci-actions": "main-513a3a49a5a7a5a3438bcc543341d5aa1353a777",
+      "circleci-actions": "main-513a3a49a4a7a5a3438bcc543341d5aa1353a777",
       "conjur-actions": "main-68367df16e49b14eee30e110c1d6f1b29c380926",
-      "crane-docker-image": "main-33694577a645315797ac7a0cb57ade727658e3ef",
+      "crane-docker-image": "main-33694577a641315797ac7a0cb57ade727658e3ef",
       "ecs-deploy-task-definition-action": "main-922c1a30d2b66619d2c67b46ed37bd9fb1a8c4ea",
       "ecs-render-task-definition-action": "main-60397298c50ca055bc577c2b6d49c2a7cac98c28",
       "findsecbugs-sast-actions": "main-c510f0a381d50a7047544430bf322c11c0424a39",
       "gha-label-artifact-version": "main-a5b0352958f03a1d2fc2b481ba57f9c9f41844d2",
       "gha-publish-evidence-item": "main-7e2bbdfec91f3035e9d4f8bf9dfe3ee35281769b",
-      "gha-publish-test-results": "main-e65674fc8ada74ae8b6fa859894387d1c870e039",
+      "gha-publish-test-results": "main-e65674fc8aaa74ae8b6fa859894387d1c870e039",
       "gha-register-build-artifact": "main-125ba0279b2bc85d11174473b5286dc4a3802b32",
       "gha-register-deployed-artifact": "main-1d819ee6c37734d240bc3e399c7515d85aa14f76",
       "gha-run-cbp-workflow": "main-8f2add6498938993dd9fd9b95dd91c4df42862e2",
@@ -60,7 +60,7 @@
       "helm-package-action": "76facfd90c8c0e6b1d08b920639f28461eb67060",
       "helm-uninstall-action": "73634d7f3bc049c40db70170a8e1f3d37f5f2109",
       "jenkins-actions": "main-aef4e534d95d2b2a1f333501aaf5dfbb6eee4331",
-      "jfrog-actions": "main-a55a44f6cf424b1e315bba31bbd0b9d03c645237",
+      "jfrog-actions": "main-a11a44f6cf424b1e315bba31bbd0b9d03c645237",
       "jfrog-pipeline-actions": "main-4a894447e190649dd1c8db4471f9f827c66706ce",
       "jfrog-xray-container-actions": "main-170c33a7a05094f2a2af1b504c52e858012ddcab",
       "kaniko-action": "523a7b24f2c753c5364b577b580a2300a0f283b7",
@@ -89,10 +89,10 @@
       "teamcity-invoke-actions": "main-d33f3ac80487adaf2743c0a8268ab528cd7847de",
       "tosca-actions": "main-0c5f3100ea4661c873231a027206782ad3c1cbfc",
       "trivy-container-actions": "main-b4cf33cb31c7b494588e7982831f4071b0fb3707",
-      "trufflehog-secret-actions": "main-12d9b3750a316a913f6d6010da272541532ae976",
+      "trufflehog-secret-actions": "main-10d9b3750a316a913f6d6010da272541532ae976",
       "workflow-advisor": "0.0.271",
-      "workflow-dispatch-actions": "main-2f55f8785ae75ce727b0d57725dd741e6ba06b4a",
-      "zap-dast-actions": "main-b0ba1a97111a8879347f8d115d25c6d7cc7cbf26"
+      "workflow-dispatch-actions": "main-2e55f8785ae75ce727b0d57725dd741e6ba06b4a",
+      "zap-dast-actions": "main-b0ba1a87111a8879347f8d115d25c6d7cc7cbf26"
     }
   }
 }
