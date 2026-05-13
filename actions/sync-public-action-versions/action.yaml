@@ -637,33 +637,37 @@ runs:
           fi
 
           # Check which HTTP client is available
+          JIRA_RESPONSE=""
           if command -v curl >/dev/null 2>&1; then
+            echo "🔧 Using curl for Jira API call"
             JIRA_RESPONSE=$(curl -s -X POST \
               -H "Content-Type: application/json" \
               -u "${{ inputs.jira-api-token }}" \
               -d "$JIRA_PAYLOAD" \
-              "$JIRA_BASE_URL/rest/api/3/issue")
+              "$JIRA_BASE_URL/rest/api/3/issue" 2>&1 || echo '{"error":"curl failed"}')
           elif command -v wget >/dev/null 2>&1; then
+            echo "🔧 Using wget for Jira API call"
             echo "$JIRA_PAYLOAD" > /tmp/jira_payload.json
             JIRA_RESPONSE=$(wget -q -O - \
               --header="Content-Type: application/json" \
               --header="Authorization: Basic $(echo -n "${{ inputs.jira-api-token }}" | base64)" \
               --post-file=/tmp/jira_payload.json \
-              "$JIRA_BASE_URL/rest/api/3/issue" 2>&1)
+              "$JIRA_BASE_URL/rest/api/3/issue" 2>&1 || echo '{"error":"wget failed"}')
             rm -f /tmp/jira_payload.json
           else
             echo "⚠️ Neither curl nor wget available in container"
-            echo "⚠️ Cannot create Jira ticket"
-            JIRA_RESPONSE="{}"
+            echo "⚠️ Skipping Jira ticket creation"
+            JIRA_RESPONSE='{"error":"no http client"}'
           fi
 
-          JIRA_TICKET_KEY=$(echo "$JIRA_RESPONSE" | jq -r '.key // empty')
+          # Try to extract ticket key (don't fail if Jira call failed)
+          JIRA_TICKET_KEY=$(echo "$JIRA_RESPONSE" | jq -r '.key // empty' 2>/dev/null || echo "")
 
           if [ -n "$JIRA_TICKET_KEY" ]; then
             echo "✅ Jira ticket created: $JIRA_BASE_URL/browse/$JIRA_TICKET_KEY"
           else
-            echo "⚠️ Failed to create Jira ticket"
-            echo "Response: $JIRA_RESPONSE"
+            echo "⚠️ Failed to create Jira ticket (non-blocking)"
+            echo "📋 Response: ${JIRA_RESPONSE:0:200}"
           fi
 
           done  # End of PUBLIC_REPO loop
