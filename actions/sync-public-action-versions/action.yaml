@@ -155,22 +155,12 @@ runs:
             fi
           fi
 
-          # Check for mapping exceptions (can be string or array)
+          # Check for mapping exceptions (all are arrays)
           PUBLIC_REPOS=""
 
           if [ -f "$MAPPING_FILE" ]; then
-            EXCEPTION_VALUE=$(jq -r ".exceptions[\"$ACTION_NAME\"] // empty" "$MAPPING_FILE" 2>/dev/null || echo "")
-            if [ -n "$EXCEPTION_VALUE" ]; then
-              # Check if it's an array
-              IS_ARRAY=$(echo "$EXCEPTION_VALUE" | jq -r 'if type == "array" then "true" else "false" end' 2>/dev/null || echo "false")
-              if [ "$IS_ARRAY" = "true" ]; then
-                # Array of repos - extract as space-separated list
-                PUBLIC_REPOS=$(jq -r ".exceptions[\"$ACTION_NAME\"] | .[]" "$MAPPING_FILE" 2>/dev/null | tr '\n' ' ')
-              else
-                # Single repo string
-                PUBLIC_REPOS="$EXCEPTION_VALUE"
-              fi
-            fi
+            # Extract array values as space-separated list
+            PUBLIC_REPOS=$(jq -r ".exceptions[\"$ACTION_NAME\"] // [] | .[]" "$MAPPING_FILE" 2>/dev/null | tr '\n' ' ')
           fi
 
           # If no exception found, use standard naming patterns
