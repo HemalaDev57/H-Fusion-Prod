@@ -532,34 +532,9 @@ runs:
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
-          PLATFORM_HELMFILES_PR=""
-
-          # Try to get PR from commit message (works for merge commits)
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B "$PLATFORM_HELMFILES_SCM_SHA" 2>/dev/null || echo "")
-          echo "🔍 Commit message: $(echo "$COMMIT_MESSAGE" | head -1)"
-
-          # Try multiple patterns: (#1234) or pull request #1234 or PR #1234
-          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '(\(#[0-9]+\)|pull request #[0-9]+|PR #[0-9]+)' | head -1 | grep -oE '[0-9]+' || echo "")
-
-          if [ -n "$PR_NUMBER" ]; then
-            PLATFORM_HELMFILES_PR="https://github.com/calculi-corp/platform-helmfiles/pull/$PR_NUMBER"
-            echo "📋 Found platform-helmfiles PR from commit message: #$PR_NUMBER"
-          else
-            # Fallback: try GitHub API (may not work for merge commits)
-            echo "🔄 Attempting to fetch PR from GitHub API..."
-            API_RESPONSE=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls 2>&1 || echo "")
-
-            # Check if response is valid JSON array (not error)
-            if echo "$API_RESPONSE" | jq -e '.[0].html_url' >/dev/null 2>&1; then
-              PLATFORM_HELMFILES_PR=$(echo "$API_RESPONSE" | jq -r '.[0].html_url')
-              echo "📋 Found platform-helmfiles PR from GitHub API"
-            else
-              echo "⚠️  GitHub API did not return a valid PR"
-            fi
-          fi
-
-          # If still no PR found, use commit URL (for direct commits)
+          PLATFORM_HELMFILES_PR=$(gh api repos/HemalaDev57/H-Fusion-Prod/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].url // empty' 2>/dev/null || echo "")
           if [ -z "$PLATFORM_HELMFILES_PR" ]; then
+            echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA in calculi-corp/platform-helmfiles."
             PLATFORM_HELMFILES_PR="https://github.com/calculi-corp/platform-helmfiles/commit/$PLATFORM_HELMFILES_SCM_SHA"
             echo "📋 No PR found, using commit URL for platform-helmfiles"
           fi
