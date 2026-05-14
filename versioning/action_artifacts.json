@@ -46,7 +46,7 @@
       "ecs-render-task-definition-action": "main-00397298c50ca055bc577c2b6d49c2a7cac98c28",
       "findsecbugs-sast-actions": "main-0010f0a381d50a7047544430bf322c11c0424a39",
       "gha-label-artifact-version": "main-12b0352958f03a1d2fc2b481ba57f9c9f41844d2",
-      "gha-publish-evidence-item": "main-111112222c91f3035e9d4f8bf9dfe3ee35281769b",
+      "gha-publish-evidence-item": "main-222222222c91f3035e9d4f8bf9dfe3ee35281769b",
       "gha-publish-test-results": "main-005674fc8aaa74ae8b6fa859894387d1c870e039",
       "gha-register-build-artifact": "main-777ba0279b2bc85d11174473b5286dc4a3802b32",
       "gha-register-deployed-artifact": "main-11819ee6c37734d240bc3e399c7515d85aa14f76",
