@@ -536,7 +536,10 @@ runs:
 
           # Try to get PR from commit message (works for merge commits)
           COMMIT_MESSAGE=$(git log -1 --pretty=%B "$PLATFORM_HELMFILES_SCM_SHA" 2>/dev/null || echo "")
-          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | head -1 | tr -d '(#)' || echo "")
+          echo "🔍 Commit message: $(echo "$COMMIT_MESSAGE" | head -1)"
+
+          # Try multiple patterns: (#1234) or pull request #1234 or PR #1234
+          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '(\(#[0-9]+\)|pull request #[0-9]+|PR #[0-9]+)' | head -1 | grep -oE '[0-9]+' || echo "")
 
           if [ -n "$PR_NUMBER" ]; then
             PLATFORM_HELMFILES_PR="https://github.com/calculi-corp/platform-helmfiles/pull/$PR_NUMBER"
