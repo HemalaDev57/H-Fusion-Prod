@@ -582,13 +582,22 @@ runs:
             continue
           fi
 
-          JIRA_DESCRIPTION=$(cat "$TEMPLATE_FILE" | \
-            sed "s|{{PUBLIC_REPO}}|$PUBLIC_REPO|g" | \
-            sed "s|{{ACTION_MAJOR_VERSION}}|$ACTION_MAJOR_VERSION|g" | \
-            sed "s|{{NEW_MINOR_VERSION}}|$NEW_MINOR_VERSION|g" | \
-            sed "s|{{PLATFORM_HELMFILES_PR}}|$PLATFORM_HELMFILES_PR|g" | \
-            sed "s|{{PUBLIC_REPO_PR_URL}}|$PUBLIC_REPO_PR_URL|g" | \
-            sed "s|{{COMPARE_URL}}|$COMPARE_URL|g")
+          JIRA_DESCRIPTION=$(jq \
+            --arg repo "$PUBLIC_REPO" \
+            --arg major "$ACTION_MAJOR_VERSION" \
+            --arg minor "$NEW_MINOR_VERSION" \
+            --arg helmfiles_pr "$PLATFORM_HELMFILES_PR" \
+            --arg pr_url "$PUBLIC_REPO_PR_URL" \
+            --arg compare "$COMPARE_URL" \
+            'walk(if type == "string" then
+              gsub("{{PUBLIC_REPO}}"; $repo) |
+              gsub("{{ACTION_MAJOR_VERSION}}"; $major) |
+              gsub("{{NEW_MINOR_VERSION}}"; $minor) |
+              gsub("{{PLATFORM_HELMFILES_PR}}"; $helmfiles_pr) |
+              gsub("{{PUBLIC_REPO_PR_URL}}"; $pr_url) |
+              gsub("{{COMPARE_URL}}"; $compare)
+            else . end)' \
+            "$TEMPLATE_FILE")
 
           # Create Jira payload with optional Team field
           if [ -n "$JIRA_TEAM_FIELD_ID" ] && [ -n "$JIRA_TEAM_ID" ]; then
