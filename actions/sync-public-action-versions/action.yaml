@@ -532,13 +532,26 @@ runs:
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
-          PLATFORM_HELMFILES_PR=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].url // empty' 2>/dev/null || echo "")
-          if [ -z "$PLATFORM_HELMFILES_PR" ]; then
-            echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA in calculi-corp/platform-helmfiles."
-            echo "⚠️ Skipping Jira ticket creation for this action."
-            echo "⚠️ Unable to find platform-helmfiles PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
-            continue
+
+          # Try to get PR from commit message (works for merge commits)
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B "$PLATFORM_HELMFILES_SCM_SHA" 2>/dev/null || echo "")
+          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | head -1 | tr -d '(#)' || echo "")
+
+          if [ -n "$PR_NUMBER" ]; then
+            PLATFORM_HELMFILES_PR="https://github.com/calculi-corp/platform-helmfiles/pull/$PR_NUMBER"
+            echo "📋 Found platform-helmfiles PR from commit message: #$PR_NUMBER"
+          else
+            # Fallback: try GitHub API (may not work for merge commits)
+            PLATFORM_HELMFILES_PR=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].html_url // empty' 2>/dev/null || echo "")
           fi
+
+          # If still no PR found, use commit URL (for direct commits)
+          if [ -z "$PLATFORM_HELMFILES_PR" ]; then
+            PLATFORM_HELMFILES_PR="https://github.com/calculi-corp/platform-helmfiles/commit/$PLATFORM_HELMFILES_SCM_SHA"
+            echo "📋 No PR found, using commit URL for platform-helmfiles"
+          fi
+
+          echo "📋 Platform-helmfiles reference: $PLATFORM_HELMFILES_PR"
 
           # Get version tags
           ACTION_MAJOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+$' | sort -V | tail -1)
