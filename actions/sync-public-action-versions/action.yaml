@@ -544,6 +544,7 @@ runs:
           if [ -z "$PLATFORM_HELMFILES_PR" ]; then
             echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA in calculi-corp/platform-helmfiles."
             echo "⚠️ Skipping Jira ticket creation for this action."
+            echo "⚠️ Unable to find platform-helmfiles PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
             continue
           fi
 
@@ -553,6 +554,7 @@ runs:
           if [ -z "$ACTION_MAJOR_VERSION" ] || [ -z "$ACTION_MINOR_VERSION" ]; then
             echo "⚠️ Unable to find the MAJOR/MINOR version tags in $PUBLIC_REPO repository."
             echo "⚠️ Skipping Jira ticket creation for this action."
+            echo "⚠️ Missing version tags in $PUBLIC_REPO" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
             continue
           fi
 
@@ -579,6 +581,7 @@ runs:
           if [ ! -f "$TEMPLATE_FILE" ]; then
             echo "⚠️ Jira template file not found: $TEMPLATE_FILE"
             echo "⚠️ Skipping Jira ticket creation for this action."
+            echo "⚠️ Jira template file not found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
             continue
           fi
 
@@ -660,6 +663,7 @@ runs:
           else
             echo "⚠️ Neither curl nor wget available in container"
             echo "⚠️ Skipping Jira ticket creation"
+            echo "⚠️ No HTTP client available" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
             JIRA_RESPONSE='{"error":"no http client"}'
           fi
 
@@ -668,9 +672,12 @@ runs:
 
           if [ -n "$JIRA_TICKET_KEY" ]; then
             echo "✅ Jira ticket created: $JIRA_BASE_URL/browse/$JIRA_TICKET_KEY"
+            echo "$JIRA_BASE_URL/browse/$JIRA_TICKET_KEY" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
           else
             echo "⚠️ Failed to create Jira ticket (non-blocking)"
             echo "📋 Response: ${JIRA_RESPONSE:0:200}"
+            JIRA_ERROR=$(echo "$JIRA_RESPONSE" | jq -r '.errorMessages[0] // .error // "API call failed"' 2>/dev/null || echo "API call failed")
+            echo "⚠️ $JIRA_ERROR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
           fi
 
           done  # End of PUBLIC_REPO loop
@@ -708,8 +715,8 @@ runs:
 
         ### Actions Changed
 
-        | Action Name | Old Version | New Version | PR Created | Status |
-        |-------------|-------------|-------------|------------|--------|
+        | Action Name | Old Version | New Version | PR Created | Jira Ticket | Status |
+        |-------------|-------------|-------------|------------|-------------|--------|
         EVIDENCE_HEADER
 
         # Count statistics
@@ -721,6 +728,7 @@ runs:
           OLD_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "unknown")
           NEW_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version" 2>/dev/null || echo "unknown")
           PR_URL=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" 2>/dev/null || echo "-")
+          JIRA_TICKET=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket" 2>/dev/null || echo "-")
           STATUS=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status" 2>/dev/null || echo "Unknown")
 
           # Truncate versions for display (keep first 35 chars)
@@ -756,6 +764,20 @@ runs:
               ;;
           esac
 
+          # Format Jira ticket for markdown
+          case "$JIRA_TICKET" in
+            https://*)
+              JIRA_KEY=$(echo "$JIRA_TICKET" | grep -oE 'CBP-[0-9]+$')
+              JIRA_LINK="[$JIRA_KEY]($JIRA_TICKET)"
+              ;;
+            "⚠️ "*)
+              JIRA_LINK="$JIRA_TICKET"
+              ;;
+            *)
+              JIRA_LINK="$JIRA_TICKET"
+              ;;
+          esac
+
           # Count statistics
           case "$STATUS" in
             *"✅"*)
@@ -767,7 +789,7 @@ runs:
           esac
 
           # Add table row
-          echo "| $ACTION_NAME | \`$OLD_VER_SHORT\` | \`$NEW_VER_SHORT\` | $PR_LINK | $STATUS |" >> "$EVIDENCE_FILE"
+          echo "| $ACTION_NAME | \`$OLD_VER_SHORT\` | \`$NEW_VER_SHORT\` | $PR_LINK | $JIRA_LINK | $STATUS |" >> "$EVIDENCE_FILE"
         done
 
         # Add summary section
