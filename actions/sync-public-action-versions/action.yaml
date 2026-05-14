@@ -445,8 +445,6 @@ runs:
 
           # Get previous version from evidence data (already extracted from HEAD~1)
           PREVIOUS_VERSION=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "")
-          echo "🔍 DEBUG: Raw PREVIOUS_VERSION from file: '$PREVIOUS_VERSION'"
-          echo "🔍 DEBUG: NEW_VERSION: '$NEW_VERSION'"
 
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "empty" ]; then
             echo "📜 Previous version: $PREVIOUS_VERSION"
@@ -457,28 +455,17 @@ runs:
 
           # Construct comparison URL if we have previous version
           COMPARE_URL=""
-          echo "🔍 DEBUG: Checking comparison URL conditions..."
-          echo "🔍 DEBUG: PREVIOUS_VERSION is empty? $([ -z "$PREVIOUS_VERSION" ] && echo 'YES' || echo 'NO')"
-          echo "🔍 DEBUG: Versions equal? $([ "$PREVIOUS_VERSION" = "$NEW_VERSION" ] && echo 'YES' || echo 'NO')"
-
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
-            echo "✅ Conditions met for comparison URL generation"
             # Try to get source repository from CloudBees context
             SOURCE_REPO="${{ cloudbees.scm.repository }}"
-            echo "🔍 DEBUG: SOURCE_REPO from context: '$SOURCE_REPO'"
             if [ -z "$SOURCE_REPO" ]; then
               # Fallback: construct from action name
               SOURCE_REPO="calculi-corp/$ACTION_NAME"
-              echo "🔍 DEBUG: Using fallback SOURCE_REPO: '$SOURCE_REPO'"
             fi
             COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_VERSION}...${NEW_VERSION}"
-            echo "📊 Comparison URL generated: $COMPARE_URL"
+            echo "📊 Comparison URL: $COMPARE_URL"
             PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
-          else
-            echo "⚠️  Skipping comparison URL generation (conditions not met)"
           fi
-
-          echo "🔍 DEBUG: Final COMPARE_URL: '$COMPARE_URL'"
 
           # Extract Jira IDs from git log if in source repository
           JIRA_IDS=""
