@@ -532,6 +532,7 @@ runs:
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
+          PLATFORM_HELMFILES_PR=""
 
           # Try to get PR from commit message (works for merge commits)
           COMMIT_MESSAGE=$(git log -1 --pretty=%B "$PLATFORM_HELMFILES_SCM_SHA" 2>/dev/null || echo "")
@@ -542,7 +543,16 @@ runs:
             echo "📋 Found platform-helmfiles PR from commit message: #$PR_NUMBER"
           else
             # Fallback: try GitHub API (may not work for merge commits)
-            PLATFORM_HELMFILES_PR=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].html_url // empty' 2>/dev/null || echo "")
+            echo "🔄 Attempting to fetch PR from GitHub API..."
+            API_RESPONSE=$(gh api repos/calculi-corp/platform-helmfiles/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls 2>&1 || echo "")
+
+            # Check if response is valid JSON array (not error)
+            if echo "$API_RESPONSE" | jq -e '.[0].html_url' >/dev/null 2>&1; then
+              PLATFORM_HELMFILES_PR=$(echo "$API_RESPONSE" | jq -r '.[0].html_url')
+              echo "📋 Found platform-helmfiles PR from GitHub API"
+            else
+              echo "⚠️  GitHub API did not return a valid PR"
+            fi
           fi
 
           # If still no PR found, use commit URL (for direct commits)
