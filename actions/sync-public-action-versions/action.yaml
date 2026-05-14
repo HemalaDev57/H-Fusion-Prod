@@ -532,11 +532,13 @@ runs:
 
           # Get platform-helmfiles PR information
           PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
-          PLATFORM_HELMFILES_PR=$(gh api repos/HemalaDev57/H-Fusion-Prod/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].url // empty' 2>/dev/null || echo "")
+          PLATFORM_HELMFILES_REPO="${{ cloudbees.scm.repository }}"
+          PLATFORM_HELMFILES_PR=$(gh api repos/$PLATFORM_HELMFILES_REPO/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].html_url // empty' 2>/dev/null || echo "")
+
           if [ -z "$PLATFORM_HELMFILES_PR" ]; then
-            echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA in calculi-corp/platform-helmfiles."
-            PLATFORM_HELMFILES_PR="https://github.com/calculi-corp/platform-helmfiles/commit/$PLATFORM_HELMFILES_SCM_SHA"
-            echo "📋 No PR found, using commit URL for platform-helmfiles"
+            echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA"
+            PLATFORM_HELMFILES_PR="https://github.com/$PLATFORM_HELMFILES_REPO/commit/$PLATFORM_HELMFILES_SCM_SHA"
+            echo "📋 No PR found, using commit URL"
           fi
 
           echo "📋 Platform-helmfiles reference: $PLATFORM_HELMFILES_PR"
