@@ -6,6 +6,9 @@ inputs:
   app-id:
     required: true
     description: The GitHub application ID to use for creating PRs in public repos
+  calculi-corp-installation-id:
+    required: true
+    description: The GitHub installation ID for the calculi-corp organization
   cloudbees-io-installation-id:
     required: true
     description: The GitHub installation ID for the cloudbees-io organization
@@ -86,6 +89,12 @@ runs:
             echo "$CURRENT_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version"
             echo "-" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
             echo "Processing" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+
+            # Get SHAs for versions (for comparison URL)
+            PREVIOUS_SHA=$(git rev-list -n 1 "$PREVIOUS_VERSION" 2>/dev/null || echo "")
+            NEW_SHA=$(git rev-list -n 1 "$CURRENT_VERSION" 2>/dev/null || echo "")
+            echo "$PREVIOUS_SHA" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_sha"
+            echo "$NEW_SHA" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_sha"
           fi
         done
 
@@ -127,6 +136,21 @@ runs:
         echo "✅ Found $CHANGED_COUNT changed action(s)"
         echo ""
 
+        echo "🔄 Obtaining GitHub App Installation token..."
+        export GH_TOKEN="$(gh-token generate --app-id "${{ inputs.app-id }}" --installation-id "${{ inputs.calculi-corp-installation-id }}" --base64-key "${{ inputs.private-key-b64 }}" --token-only )"
+        echo "✅ GitHub App Installation token obtained"
+        PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
+        PLATFORM_HELMFILES_REPO="${{ cloudbees.scm.repository }}"
+        echo "🔍 SCM SHA for platform-helmfiles: $PLATFORM_HELMFILES_SCM_SHA"
+        
+        PLATFORM_HELMFILES_PR=$(gh api repos/$PLATFORM_HELMFILES_REPO/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].html_url // empty' 2>/dev/null || echo "")
+        if [ -z "$PLATFORM_HELMFILES_PR" ]; then
+          echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA"
+          PLATFORM_HELMFILES_PR="https://github.com/$PLATFORM_HELMFILES_REPO/commit/$PLATFORM_HELMFILES_SCM_SHA"
+          echo "📋 No PR found, using commit URL"
+        fi
+        echo "📋 Platform-helmfiles reference: $PLATFORM_HELMFILES_PR"
+        
         # Define mapping file path (constant across all actions)
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
@@ -445,24 +469,26 @@ runs:
 
           # Get previous version from evidence data (already extracted from HEAD~1)
           PREVIOUS_VERSION=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "")
+          PREVIOUS_SHA=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_sha" 2>/dev/null || echo "")
+          NEW_SHA=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_sha" 2>/dev/null || echo "")
 
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "empty" ]; then
-            echo "📜 Previous version: $PREVIOUS_VERSION"
+            echo "📜 Previous version: $PREVIOUS_VERSION (SHA: $PREVIOUS_SHA)"
           else
             echo "⚠️  No previous version found"
             PREVIOUS_VERSION=""
           fi
 
-          # Construct comparison URL if we have previous version
+          # Construct comparison URL if we have previous SHA
           COMPARE_URL=""
-          if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
+          if [ -n "$PREVIOUS_SHA" ] && [ -n "$NEW_SHA" ] && [ "$PREVIOUS_SHA" != "$NEW_SHA" ]; then
             # Try to get source repository from CloudBees context
             SOURCE_REPO="${{ cloudbees.scm.repository }}"
             if [ -z "$SOURCE_REPO" ]; then
               # Fallback: construct from action name
               SOURCE_REPO="calculi-corp/$ACTION_NAME"
             fi
-            COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_VERSION}...${NEW_VERSION}"
+            COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_SHA}...${NEW_SHA}"
             echo "📊 Comparison URL: $COMPARE_URL"
             PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
           fi
@@ -529,19 +555,6 @@ runs:
             echo "https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
           fi
           echo "✅ PR Created" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
-
-          # Get platform-helmfiles PR information
-          PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
-          PLATFORM_HELMFILES_REPO="${{ cloudbees.scm.repository }}"
-          PLATFORM_HELMFILES_PR=$(gh api repos/$PLATFORM_HELMFILES_REPO/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].html_url // empty' 2>/dev/null || echo "")
-
-          if [ -z "$PLATFORM_HELMFILES_PR" ]; then
-            echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA"
-            PLATFORM_HELMFILES_PR="https://github.com/$PLATFORM_HELMFILES_REPO/commit/$PLATFORM_HELMFILES_SCM_SHA"
-            echo "📋 No PR found, using commit URL"
-          fi
-
-          echo "📋 Platform-helmfiles reference: $PLATFORM_HELMFILES_PR"
 
           # Get version tags
           ACTION_MAJOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+$' | sort -V | tail -1)
