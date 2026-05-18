@@ -474,30 +474,36 @@ runs:
           # Construct comparison URL if we have previous version
           COMPARE_URL=""
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
-            # Try to get source repository from CloudBees context
-            SOURCE_REPO="${{ cloudbees.scm.repository }}"
-            if [ -z "$SOURCE_REPO" ]; then
-              # Fallback: construct from action name
-              SOURCE_REPO="calculi-corp/$ACTION_NAME"
+            # Determine the source repository based on action name
+            # Exception: gha-publish-test-results -> publish-test-results
+            SOURCE_REPO_NAME="$ACTION_NAME"
+            if [ "$ACTION_NAME" = "gha-publish-test-results" ]; then
+              SOURCE_REPO_NAME="publish-test-results"
             fi
+            SOURCE_REPO="calculi-corp/$SOURCE_REPO_NAME"
+            echo "🔍 Source repository: $SOURCE_REPO"
+
+            # Strip 'main-' prefix from versions for comparison
+            COMPARE_PREVIOUS_VERSION=$(echo "$PREVIOUS_VERSION" | sed 's/^main-//')
+            COMPARE_NEW_VERSION=$(echo "$NEW_VERSION" | sed 's/^main-//')
 
             # Get SHAs for the version tags from the source repository
-            echo "🔍 Fetching commit SHAs for version tags..."
-            PREVIOUS_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$PREVIOUS_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
-            NEW_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$NEW_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
+            echo "🔍 Fetching commit SHAs for version tags (${COMPARE_PREVIOUS_VERSION} and ${COMPARE_NEW_VERSION})..."
+            PREVIOUS_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$COMPARE_PREVIOUS_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
+            NEW_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$COMPARE_NEW_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
 
             if [ -n "$PREVIOUS_SHA" ] && [ -n "$NEW_SHA" ]; then
-              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_SHA}...${NEW_SHA}"
+              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${COMPARE_PREVIOUS_VERSION}...${COMPARE_NEW_VERSION}"
               echo "📊 Comparison URL: $COMPARE_URL"
-              echo "   Previous SHA: $PREVIOUS_SHA"
-              echo "   New SHA: $NEW_SHA"
-              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
+              echo "   Previous: $COMPARE_PREVIOUS_VERSION (SHA: $PREVIOUS_SHA)"
+              echo "   New: $COMPARE_NEW_VERSION (SHA: $NEW_SHA)"
+              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$COMPARE_PREVIOUS_VERSION" "$COMPARE_NEW_VERSION" "$COMPARE_URL")
             else
               echo "⚠️  Unable to fetch SHAs for version tags (tags may not exist in source repo)"
               # Fallback to version-based comparison
-              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_VERSION}...${NEW_VERSION}"
+              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${COMPARE_PREVIOUS_VERSION}...${COMPARE_NEW_VERSION}"
               echo "📊 Comparison URL (using versions): $COMPARE_URL"
-              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
+              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$COMPARE_PREVIOUS_VERSION" "$COMPARE_NEW_VERSION" "$COMPARE_URL")
             fi
           fi
 
