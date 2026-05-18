@@ -89,12 +89,6 @@ runs:
             echo "$CURRENT_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version"
             echo "-" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
             echo "Processing" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
-
-            # Get SHAs for versions (for comparison URL)
-            PREVIOUS_SHA=$(git rev-list -n 1 "$PREVIOUS_VERSION" 2>/dev/null || echo "")
-            NEW_SHA=$(git rev-list -n 1 "$CURRENT_VERSION" 2>/dev/null || echo "")
-            echo "$PREVIOUS_SHA" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_sha"
-            echo "$NEW_SHA" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_sha"
           fi
         done
 
@@ -469,28 +463,42 @@ runs:
 
           # Get previous version from evidence data (already extracted from HEAD~1)
           PREVIOUS_VERSION=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "")
-          PREVIOUS_SHA=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_sha" 2>/dev/null || echo "")
-          NEW_SHA=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_sha" 2>/dev/null || echo "")
 
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "empty" ]; then
-            echo "📜 Previous version: $PREVIOUS_VERSION (SHA: $PREVIOUS_SHA)"
+            echo "📜 Previous version: $PREVIOUS_VERSION"
           else
             echo "⚠️  No previous version found"
             PREVIOUS_VERSION=""
           fi
 
-          # Construct comparison URL if we have previous SHA
+          # Construct comparison URL if we have previous version
           COMPARE_URL=""
-          if [ -n "$PREVIOUS_SHA" ] && [ -n "$NEW_SHA" ] && [ "$PREVIOUS_SHA" != "$NEW_SHA" ]; then
+          if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
             # Try to get source repository from CloudBees context
             SOURCE_REPO="${{ cloudbees.scm.repository }}"
             if [ -z "$SOURCE_REPO" ]; then
               # Fallback: construct from action name
               SOURCE_REPO="calculi-corp/$ACTION_NAME"
             fi
-            COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_SHA}...${NEW_SHA}"
-            echo "📊 Comparison URL: $COMPARE_URL"
-            PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
+
+            # Get SHAs for the version tags from the source repository
+            echo "🔍 Fetching commit SHAs for version tags..."
+            PREVIOUS_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$PREVIOUS_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
+            NEW_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$NEW_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
+
+            if [ -n "$PREVIOUS_SHA" ] && [ -n "$NEW_SHA" ]; then
+              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_SHA}...${NEW_SHA}"
+              echo "📊 Comparison URL: $COMPARE_URL"
+              echo "   Previous SHA: $PREVIOUS_SHA"
+              echo "   New SHA: $NEW_SHA"
+              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
+            else
+              echo "⚠️  Unable to fetch SHAs for version tags (tags may not exist in source repo)"
+              # Fallback to version-based comparison
+              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${PREVIOUS_VERSION}...${NEW_VERSION}"
+              echo "📊 Comparison URL (using versions): $COMPARE_URL"
+              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$PREVIOUS_VERSION" "$NEW_VERSION" "$COMPARE_URL")
+            fi
           fi
 
           # Extract Jira IDs from git log if in source repository
