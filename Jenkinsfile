@@ -2,100 +2,70 @@ pipeline {
     agent any
 
     stages {
-        stage('Build') {
-            stages {
-                stage('Compile') {
-                    steps {
-                        echo 'Compiling...'
-                        sleep 3
-                    }
-                }
-                stage('Package') {
-                    steps {
-                        echo 'Packaging...'
-                        sleep 3
-                    }
-                }
-            }
-        }
 
         stage('Registering build artifact') {
             steps {
                 script {
                     echo 'Registering the metadata'
                     echo 'Another echo to make the pipeline a bit more complex'
-                    def artifactOutput = registerBuildArtifactMetadata(
-                        name: "h-e2e-prod-v5",
-                        version: "1.0.1",
+                    env.ARTIFACT_ID = registerBuildArtifactMetadata(
+                        name: "Automation test for Register-Artifacts",
+                        version: "1.0.0",
                         type: "docker",
-                        url: "docker.io/hemaladev57/h-e2e-prod-v5:1.0.1",
-                        digest: "11223344556677870393461636632373839379",
-                        label: "preprod"
+                        url: "http://non:1111",
+                        digest: "6f637064707039346163663237383938",
+                        label: "Artifact"
                     )
-                    echo "Artifact output is: ${artifactOutput}"
-                    env.ARTIFACT_ID = artifactOutput
+                    echo "Captured Artifact ID: ${env.ARTIFACT_ID}"
+
+                    // Verify artifact ID was captured successfully
+                    if (!env.ARTIFACT_ID) {
+                        error("Failed to capture Artifact ID from build artifact registration")
+                    }
+                    echo "Build artifact registration completed successfully"
                 }
             }
         }
 
-        stage('Test') {
-            steps {
-                echo 'Running Unit Tests...'
-                sleep 2
+        stage('Registering deployed artifact') {
+            environment {
+                TARGET_ENV = 'production'
             }
-        }
-
-        stage('Deploy') {
-            steps {
-                echo "Artifact ID : ${env.ARTIFACT_ID}"
-                registerDeployedArtifactMetadata(
-                    id: "${env.ARTIFACT_ID}",
-                    url: "docker.io/hemaladev57/h-e2e-prod-v5:1.0.1",
-                    targetEnvironment: "preprod",
-                    labels: "prod"
-                )    
-                echo 'Deploying...'
-                sleep 2
-            }
-        }
-        stage('Registering build artifact - 1') {
             steps {
                 script {
-                    echo 'Registering the metadata'
-                    echo 'Another echo to make the pipeline a bit more complex'
-                    def artifactOutput1 = registerBuildArtifactMetadata(
-                        name: "h-e2e-prod-v5-1",
-                        version: "1.0.1",
-                        type: "docker",
-                        url: "docker.io/hemaladev57/h-e2e-prod-v5-1:1.0.1",
-                        digest: "11223355446677870393461636632373832388",
-                        label: "prod"
+                    // Wait for build artifact registration to complete and verify artifact ID is available
+                    echo "Waiting for build artifact registration to complete..."
+
+                    if (!env.ARTIFACT_ID) {
+                        error("Artifact ID is not available. Build artifact registration may have failed.")
+                    }
+
+                    echo "Artifact ID verified: ${env.ARTIFACT_ID}"
+                    echo "Registering deployment to environment: ${env.TARGET_ENV}"
+
+                    registerDeployedArtifactMetadata(
+                        id: "${env.ARTIFACT_ID}",
+                        targetEnvironment: "production"
                     )
-                    echo "Artifact output is: ${artifactOutput1}"
-                    env.ARTIFACT_ID = artifactOutput1
+
+                    echo "Deployment artifact registration completed successfully"
                 }
             }
         }
 
-        stage('Test - 1') {
+        stage('Publish Test Results') {
             steps {
-                echo 'Running Unit Tests...'
-                sleep 2
+                junit 'target/surefire-reports/*.xml'
             }
         }
+    }
 
-        stage('Deploy-1') {
-            steps {
-                echo "Artifact ID : ${env.ARTIFACT_ID}"
-                registerDeployedArtifactMetadata(
-                    id: "${env.ARTIFACT_ID}",
-                    url: "docker.io/hemaladev57/h-e2e-prod-v5-1:1.0.1",
-                    targetEnvironment: "production-invalid",
-                    labels: "prod"
-                )    
-                echo 'Deploying...'
-                sleep 2
-            }
+    post {
+        always {
+            echo 'Pipeline completed.'
+        }
+        failure {
+            echo 'Build or tests failed!'
         }
     }
 }
