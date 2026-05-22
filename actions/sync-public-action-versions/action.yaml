@@ -66,21 +66,21 @@ runs:
           GENERATED_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
       
           cat > "$EVIDENCE_FILE" << EVIDENCE_NO_CHANGES
-          ## Sync Public Action Versions - Evidence Report
-      
-          **Generated:** $GENERATED_TIME
-          **Workflow Run:** $CLOUDBEES_RUN_ID
-          **Commit:** $CLOUDBEES_COMMIT_SHA
-          **Branch:** $CLOUDBEES_BRANCH
-      
-          ### Summary
-      
-          ℹ️ No action version changes detected in this commit.
-      
-          ---
-      
-          **Repository:** calculi-corp/platform-helmfiles
-          EVIDENCE_NO_CHANGES
+        ## Sync Public Action Versions - Evidence Report
+    
+        **Generated:** $GENERATED_TIME
+        **Workflow Run:** $CLOUDBEES_RUN_ID
+        **Commit:** $CLOUDBEES_COMMIT_SHA
+        **Branch:** $CLOUDBEES_BRANCH
+    
+        ### Summary
+    
+        ℹ️ No action version changes detected in this commit.
+    
+        ---
+    
+        **Repository:** calculi-corp/platform-helmfiles
+        EVIDENCE_NO_CHANGES
       
           if [ -f "$EVIDENCE_FILE" ]; then
           cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
