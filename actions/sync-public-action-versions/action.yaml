@@ -487,7 +487,7 @@ runs:
           fi
       
           # Add note about draft status and SRE ticket
-          PR_BODY=$(printf '%s\n\n---\n\n⚠️ **Note:** Merge this PR\n Create a new tag for the release' "$PR_BODY")
+          PR_BODY=$(printf '%s\n\n---\n\nMerge this PR\n Create a new tag for the release' "$PR_BODY")
       
           echo "📝 PR Title: $PR_TITLE"
       
