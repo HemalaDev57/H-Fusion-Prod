@@ -50,7 +50,7 @@ runs:
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
-          echo "Input file $ARTIFACTS_JSON not found, skipping sync"
+          echo "Input files $ARTIFACTS_JSON not found, skipping sync"
           exit 0
         fi
 
