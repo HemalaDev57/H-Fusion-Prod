@@ -481,7 +481,7 @@ runs:
           fi
       
           # Add note about draft status and SRE ticket
-          PR_BODY=$(printf '%s\n\n---\n\n⚠️ **Note:** This PR should remain in DRAFT status until the Docker image is available in the public registry.\n\nA Jira ticket will be automatically created for SRE to:\n1. Merge this PR\n2. Create a new tag for the release' "$PR_BODY")
+          PR_BODY=$(printf '%s\n\n---\n\n⚠️ **Note:** Merge this PR\n Create a new tag for the release' "$PR_BODY")
       
           echo "📝 PR Title: $PR_TITLE"
       
@@ -496,18 +496,16 @@ runs:
               -f head="$BRANCH" \
               -f base="$DEFAULT_BRANCH" \
               -f body="$PR_BODY" \
-              -F draft=true \
               --jq '.number')
-            echo "✅ Draft pull request created from $BRANCH to $DEFAULT_BRANCH"
+            echo "✅ Pull request created from $BRANCH to $DEFAULT_BRANCH"
           else
             PR_STATE=$(gh api repos/"$PUBLIC_REPO"/pulls/"$EXISTING_PR" --jq '.state')
             if [ "$PR_STATE" = "closed" ]; then
               gh api repos/"$PUBLIC_REPO"/pulls/"$EXISTING_PR" -X PATCH \
                 -f state="open" \
                 -f title="$PR_TITLE" \
-                -f body="$PR_BODY" \
-                -F draft=true
-              echo "✅ Reopened pull request #$EXISTING_PR as draft"
+                -f body="$PR_BODY"
+              echo "✅ Reopened pull request #$EXISTING_PR"
             else
               gh api repos/"$PUBLIC_REPO"/pulls/"$EXISTING_PR" -X PATCH \
                 -f title="$PR_TITLE" \
@@ -530,3 +528,124 @@ runs:
 
           done  # for PUBLIC_REPO
         done  # for ACTION_NAME
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Summary"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "✅ Processed $CHANGED_COUNT changed action(s)"
+        echo "🎯 Next steps:"
+        echo "   1. Review the PRs created in public repositories"
+        echo "   2. CODEOWNERS of the public repository to Approve the PR"
+
+        # Generate evidence report
+        echo ""
+        echo "🔄 Generating evidence report..."
+
+        # Set variables for evidence report
+        CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
+        CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
+        CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
+        GENERATED_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
+
+        # Initialize evidence report with proper formatting
+        cat > "$EVIDENCE_FILE" << EVIDENCE_HEADER
+        ## Sync Public Action Versions - Evidence Report
+
+        **Generated:** $GENERATED_TIME
+        **Workflow Run:** $CLOUDBEES_RUN_ID
+        **Commit:** $CLOUDBEES_COMMIT_SHA
+        **Branch:** $CLOUDBEES_BRANCH
+
+        ### Actions Changed
+
+        | Action Name | Old Version | New Version | PR Created | Status |
+        |-------------|-------------|-------------|------------|--------|
+        EVIDENCE_HEADER
+
+        # Count statistics
+        SUCCESS_COUNT=0
+        ERROR_COUNT=0
+
+        # Build evidence table rows
+        for ACTION_NAME in $ACTION_NAMES; do
+          OLD_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "unknown")
+          NEW_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version" 2>/dev/null || echo "unknown")
+          PR_URL=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" 2>/dev/null || echo "-")
+          STATUS=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status" 2>/dev/null || echo "Unknown")
+
+          # Truncate versions for display (keep first 35 chars)
+          OLD_VER_SHORT="$OLD_VER"
+          NEW_VER_SHORT="$NEW_VER"
+          if [ ${#OLD_VER} -gt 35 ]; then
+            OLD_VER_SHORT="$(echo "$OLD_VER" | head -c 32)..."
+          fi
+          if [ ${#NEW_VER} -gt 35 ]; then
+            NEW_VER_SHORT="$(echo "$NEW_VER" | head -c 32)..."
+          fi
+
+          # Format PR URL(s) for markdown (handle comma-separated multiple URLs)
+          case "$PR_URL" in
+            *,*)
+              # Multiple URLs - format each
+              PR_LINK=""
+              for URL in $(echo "$PR_URL" | tr ',' ' '); do
+                PR_NUM=$(echo "$URL" | grep -oE '[0-9]+$')
+                if [ -n "$PR_LINK" ]; then
+                  PR_LINK="$PR_LINK, [PR #$PR_NUM]($URL)"
+                else
+                  PR_LINK="[PR #$PR_NUM]($URL)"
+                fi
+              done
+              ;;
+            https://*)
+              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+              PR_LINK="[PR #$PR_NUMBER]($PR_URL)"
+              ;;
+            *)
+              PR_LINK="$PR_URL"
+              ;;
+          esac
+
+          # Count statistics
+          case "$STATUS" in
+            *"✅"*)
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              ;;
+            *"❌"*|*"⚠️"*)
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+              ;;
+          esac
+
+          # Add table row
+          echo "| $ACTION_NAME | \`$OLD_VER_SHORT\` | \`$NEW_VER_SHORT\` | $PR_LINK | $STATUS |" >> "$EVIDENCE_FILE"
+        done
+
+        # Add summary section
+        cat >> "$EVIDENCE_FILE" << EVIDENCE_FOOTER
+
+        ---
+
+        ### Summary Statistics
+
+        - **Total Actions Changed:** $CHANGED_COUNT
+        - **Successful PR Creations:** $SUCCESS_COUNT
+        - **Errors/Warnings:** $ERROR_COUNT
+
+        ### Next Steps
+
+        1. ✅ Review all PRs in their respective repositories
+        2. 📋 CODEOWNERS to approve the PR's
+        4. 🏷️ Verify release tags are created after PR merges
+
+        ---
+
+        **Repository:** calculi-corp/platform-helmfiles
+        EVIDENCE_FOOTER
+
+        # Output evidence to CloudBees output
+        if [ -f "$EVIDENCE_FILE" ]; then
+          cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
+          echo "✅ Evidence report generated and saved to outputs"
+        else
+          echo "❌ ERROR: Evidence file not created"
+        fi
