@@ -19,7 +19,7 @@ jobs:
       - name: Get source code
         uses: cloudbees-io/checkout@v2
         with:
-          ref: main
+          ref: master
           fetch-depth: 2
 
       - name: Detect changed artifacts
