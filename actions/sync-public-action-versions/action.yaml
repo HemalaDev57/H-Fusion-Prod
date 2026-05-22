@@ -21,7 +21,9 @@ inputs:
   jira-api-token:
     required: true
     description: Jira API token for creating tickets
-
+  input-file:
+    required: true
+    description: The path to the action_artifacts.json file containing the updated action versions
 outputs:
   evidence-report:
     description: Markdown formatted evidence report of all changes
@@ -41,102 +43,63 @@ runs:
       run: |
         set -e
 
-        ARTIFACTS_JSON="versioning/action_artifacts.json"
         EVIDENCE_FILE="/tmp/evidence_report.md"
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
+        ARTIFACTS_JSON="${{ inputs.input-file }}"
+        MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ ! -f "$ARTIFACTS_JSON" ]; then
-          echo "❌ ERROR: $ARTIFACTS_JSON not found"
-          exit 1
+          echo "Input file $ARTIFACTS_JSON not found, skipping sync"
+          exit 0
         fi
 
-        # Detect which actions changed
-        echo "🔍 Detecting which actions changed..."
-        CURRENT_JSON=$(cat "$ARTIFACTS_JSON")
+        ACTION_NAMES=$(echo "$ARTIFACTS_JSON" | jq -r '.public.actions | keys[]')
 
-        # Validate current JSON
-        if ! echo "$CURRENT_JSON" | jq empty 2>/dev/null; then
-          echo "❌ ERROR: $ARTIFACTS_JSON contains invalid JSON"
-          exit 1
-        fi
-
-        PREVIOUS_JSON=$(git show HEAD~1:"$ARTIFACTS_JSON" 2>/dev/null || echo "{}")
-
-        # Validate previous JSON if not empty
-        if [ "$PREVIOUS_JSON" != "{}" ] && ! echo "$PREVIOUS_JSON" | jq empty 2>/dev/null; then
-          echo "⚠️  WARNING: Previous version of $ARTIFACTS_JSON contains invalid JSON, treating as empty"
-          PREVIOUS_JSON="{}"
-        fi
-
-        CHANGED_ACTIONS=""
-        ACTION_NAMES=$(echo "$CURRENT_JSON" | jq -r '.public.actions | keys[]')
-
-        for ACTION_NAME in $ACTION_NAMES; do
-          CURRENT_VERSION=$(echo "$CURRENT_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"]")
-          PREVIOUS_VERSION=$(echo "$PREVIOUS_JSON" | jq -r ".public.actions[\"$ACTION_NAME\"] // empty")
-
-          if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
-            echo "  📦 Changed: $ACTION_NAME ($PREVIOUS_VERSION → $CURRENT_VERSION)"
-            if [ -z "$CHANGED_ACTIONS" ]; then
-              CHANGED_ACTIONS="$ACTION_NAME"
-            else
-              CHANGED_ACTIONS="${CHANGED_ACTIONS} ${ACTION_NAME}"
-            fi
-
-            # Store for evidence using files
-            echo "$PREVIOUS_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version"
-            echo "$CURRENT_VERSION" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version"
-            echo "-" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
-            echo "Processing" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
-          fi
-        done
-
-        if [ -z "$CHANGED_ACTIONS" ]; then
+        if [ -z "$ACTION_NAMES" ]; then
           echo "ℹ️  No changed actions detected"
-
+      
           # Generate evidence report for no changes
           CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
           CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
           CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
           GENERATED_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
-
+      
           cat > "$EVIDENCE_FILE" << EVIDENCE_NO_CHANGES
-        ## Sync Public Action Versions - Evidence Report
-
-        **Generated:** $GENERATED_TIME
-        **Workflow Run:** $CLOUDBEES_RUN_ID
-        **Commit:** $CLOUDBEES_COMMIT_SHA
-        **Branch:** $CLOUDBEES_BRANCH
-
-        ### Summary
-
-        ℹ️ No action version changes detected in this commit.
-
-        ---
-
-        **Repository:** calculi-corp/platform-helmfiles
-        EVIDENCE_NO_CHANGES
-
+          ## Sync Public Action Versions - Evidence Report
+      
+          **Generated:** $GENERATED_TIME
+          **Workflow Run:** $CLOUDBEES_RUN_ID
+          **Commit:** $CLOUDBEES_COMMIT_SHA
+          **Branch:** $CLOUDBEES_BRANCH
+      
+          ### Summary
+      
+          ℹ️ No action version changes detected in this commit.
+      
+          ---
+      
+          **Repository:** calculi-corp/platform-helmfiles
+          EVIDENCE_NO_CHANGES
+      
           if [ -f "$EVIDENCE_FILE" ]; then
-            cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
+          cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
           fi
-
+      
           exit 0
         fi
 
-        CHANGED_COUNT=$(echo "$CHANGED_ACTIONS" | wc -w)
-        echo ""
-        echo "✅ Found $CHANGED_COUNT changed action(s)"
-        echo ""
 
-        echo "🔄 Obtaining GitHub App Installation token..."
+        PLATFORM_HELMFILES_SCM_SHA="${{ cloudbees.scm.sha }}"
+        PLATFORM_HELMFILES_REPO="${{ cloudbees.scm.repository }}"
+
+        echo "🔄 Obtaining GitHub App Installation token for calculi-corp Org..."
         export GH_TOKEN="$(gh-token generate --app-id "${{ inputs.app-id }}" --installation-id "${{ inputs.calculi-corp-installation-id }}" --base64-key "${{ inputs.private-key-b64 }}" --token-only )"
         echo "✅ GitHub App Installation token obtained"
         PLATFORM_HELMFILES_SCM_SHA=${{ cloudbees.scm.sha }}
         PLATFORM_HELMFILES_REPO="${{ cloudbees.scm.repository }}"
         echo "🔍 SCM SHA for platform-helmfiles: $PLATFORM_HELMFILES_SCM_SHA"
-        
+      
         PLATFORM_HELMFILES_PR=$(gh api repos/$PLATFORM_HELMFILES_REPO/commits/$PLATFORM_HELMFILES_SCM_SHA/pulls --jq '.[0].html_url // empty' 2>/dev/null || echo "")
         if [ -z "$PLATFORM_HELMFILES_PR" ]; then
           echo "⚠️ Unable to find the Pull Request for the commit $PLATFORM_HELMFILES_SCM_SHA"
@@ -144,18 +107,12 @@ runs:
           echo "📋 No PR found, using commit URL"
         fi
         echo "📋 Platform-helmfiles reference: $PLATFORM_HELMFILES_PR"
-        
-        # Define mapping file path (constant across all actions)
-        MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
-
-        # Process each changed action
-        for ACTION_NAME in $CHANGED_ACTIONS; do
+      
+        for ACTION_NAME in $ACTION_NAMES; do
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Processing: $ACTION_NAME"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
 
-          # Read the new version
           NEW_VERSION=$(jq -r ".public.actions[\"$ACTION_NAME\"]" "$ARTIFACTS_JSON")
 
           echo "📦 Action: $ACTION_NAME"
@@ -172,20 +129,20 @@ runs:
               continue
             fi
           fi
-
+      
           # Check for mapping exceptions (all are arrays)
           PUBLIC_REPOS=""
-
+      
           if [ -f "$MAPPING_FILE" ]; then
             # Extract array values as space-separated list
             PUBLIC_REPOS=$(jq -r ".exceptions[\"$ACTION_NAME\"] // [] | .[]" "$MAPPING_FILE" 2>/dev/null | tr '\n' ' ')
           fi
-
+      
           # If no exception found, use standard naming patterns
           if [ -z "$PUBLIC_REPOS" ]; then
             # Check if action follows standard naming convention
             HAS_STANDARD_NAMING=false
-
+      
             # For GHA actions: gha-* -> cloudbees-io-gha/*
             # For CBP actions: *-actions -> cloudbees-io/*
             if echo "$ACTION_NAME" | grep -q "^gha-"; then
@@ -208,15 +165,15 @@ runs:
               continue
             fi
           fi
-
+      
           echo "🎯 Target public repository(s): $PUBLIC_REPOS"
-
+      
           # Process each public repository
           for PUBLIC_REPO in $PUBLIC_REPOS; do
             echo ""
             echo "  📍 Processing repository: $PUBLIC_REPO"
             echo ""
-
+      
           # Determine which installation ID to use based on the organization
           echo "🔄 Determining GitHub App installation ID for organization..."
           INSTALLATION_ID=""
@@ -232,7 +189,7 @@ runs:
             echo ""
             continue
           fi
-
+      
           # Validate installation ID is not empty
           if [ -z "$INSTALLATION_ID" ]; then
             echo "❌ ERROR: Installation ID is empty"
@@ -243,7 +200,7 @@ runs:
             echo ""
             continue
           fi
-
+      
           # Generate GitHub App Installation token for this organization
           echo "🔄 Obtaining GitHub App Installation token..."
           echo "🔍 Debug - App ID: ${{ inputs.app-id }}"
@@ -251,7 +208,7 @@ runs:
           echo "🔍 Debug - Private key length: $(echo '${{ inputs.private-key-b64 }}' | wc -c)"
           GH_TOKEN_OUTPUT=$(gh-token generate --app-id "${{ inputs.app-id }}" --installation-id "$INSTALLATION_ID" --base64-key "${{ inputs.private-key-b64 }}" --token-only 2>&1)
           GH_TOKEN_EXIT_CODE=$?
-
+      
           if [ $GH_TOKEN_EXIT_CODE -ne 0 ]; then
             echo "❌ ERROR: Failed to generate GitHub App Installation token"
             echo "Error details: $GH_TOKEN_OUTPUT"
@@ -264,9 +221,9 @@ runs:
             echo ""
             continue
           fi
-
+      
           export GH_TOKEN="$GH_TOKEN_OUTPUT"
-
+      
           # Validate token is not empty
           if [ -z "$GH_TOKEN" ] || [ "$GH_TOKEN" = "null" ]; then
             echo "❌ ERROR: GitHub token is empty or null"
@@ -274,10 +231,10 @@ runs:
             echo ""
             continue
           fi
-
+      
           echo "✅ GitHub App Installation token obtained"
           echo ""
-
+      
           # Check if public repository exists
           echo "🔄 Checking if public repository exists..."
           REPO_INFO=$(gh api repos/"$PUBLIC_REPO" 2>/dev/null)
@@ -288,7 +245,7 @@ runs:
             echo "❌ Repo not accessible" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+      
           # Check if repository is public
           REPO_PRIVATE=$(echo "$REPO_INFO" | jq -r '.private')
           if [ "$REPO_PRIVATE" = "true" ]; then
@@ -300,17 +257,17 @@ runs:
             continue
           fi
           echo "✅ Public repository $PUBLIC_REPO exists and is public"
-
+      
           BRANCH="update-image-${NEW_VERSION}"
-
+      
           echo "🔄 Determining default branch of $PUBLIC_REPO..."
           DEFAULT_BRANCH=$(gh api repos/"$PUBLIC_REPO" --jq '.default_branch')
           echo "✅ Default branch of $PUBLIC_REPO is $DEFAULT_BRANCH"
-
+      
           echo "🔄 Determining latest commit of $DEFAULT_BRANCH branch..."
           LATEST_MAIN_SHA=$(gh api repos/"$PUBLIC_REPO"/git/ref/heads/"$DEFAULT_BRANCH" --jq '.object.sha')
           echo "✅ Latest commit of $DEFAULT_BRANCH is $LATEST_MAIN_SHA"
-
+      
           # Try to find action.yml or action.yaml
           ACTION_FILE_PATH=""
           for filename in "action.yml" "action.yaml"; do
@@ -321,7 +278,7 @@ runs:
               break
             fi
           done
-
+      
           if [ -z "$ACTION_FILE_PATH" ]; then
             echo "⚠️  ERROR: Neither action.yml nor action.yaml found in $PUBLIC_REPO"
             echo "⚠️  This action may use a different structure. Manual update required."
@@ -329,17 +286,17 @@ runs:
             echo "❌ No action file found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+      
           # Get current file content and SHA
           ACTION_FILE_CONTENT=$(gh api repos/"$PUBLIC_REPO"/contents/"$ACTION_FILE_PATH"'?ref'="$DEFAULT_BRANCH")
           CURRENT_FILE_SHA=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.sha')
           CURRENT_CONTENT=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.content' | base64 -d)
-
+      
           # Extract current image version - match action name in image path
           # Look for docker://*/actions/${ACTION_NAME}: pattern
           IMAGE_PATTERN="actions/${ACTION_NAME}:"
           CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
-
+      
           # If not found, try without -actions suffix (e.g., plugin-blackduck-sca)
           if [ -z "$CURRENT_IMAGE" ]; then
             ALT_ACTION_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
@@ -349,7 +306,7 @@ runs:
               IMAGE_PATTERN="$ALT_IMAGE_PATTERN"
             fi
           fi
-
+      
           # If still not found, check if it's a Dockerfile-based action
           if [ -z "$CURRENT_IMAGE" ]; then
             DOCKERFILE_CHECK=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -i "Dockerfile" | head -1)
@@ -360,7 +317,7 @@ runs:
               echo "⚠️ Dockerfile-based (skipped)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
               continue
             fi
-
+      
             # Check for any docker:// image (fallback for non-standard naming)
             CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
             if [ -z "$CURRENT_IMAGE" ]; then
@@ -379,13 +336,13 @@ runs:
               continue
             fi
           fi
-
+      
           echo "📸 Current image: $CURRENT_IMAGE"
-
+      
           # Extract current version from image
           CURRENT_VERSION=$(echo "$CURRENT_IMAGE" | grep -oE '[^:]+$' | xargs)
           echo "   Current version: $CURRENT_VERSION"
-
+      
           # Check if already up-to-date BEFORE building new image
           if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
             echo "✅ Image is already at version $NEW_VERSION. No update needed."
@@ -393,7 +350,7 @@ runs:
             echo "✅ Already up-to-date" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+      
           # Determine the new image path
           if echo "$CURRENT_IMAGE" | grep -q "^docker://"; then
             # Extract ECR registry path from current image
@@ -406,18 +363,18 @@ runs:
             echo "❌ Unexpected image format" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+      
           echo "🆕 New image: $NEW_IMAGE"
-
+      
           # Create or update branch
           echo "🔄 Checking if $BRANCH branch already exists in $PUBLIC_REPO..."
           BRANCH_REF=$(gh api repos/"$PUBLIC_REPO"/git/refs/heads/"$BRANCH" --silent 2>/dev/null || echo "false")
-
+      
           if [ "$BRANCH_REF" = "false" ]; then
             echo "🔄 Creating $BRANCH in $PUBLIC_REPO..."
             gh api repos/"$PUBLIC_REPO"/git/refs -X POST -f ref="refs/heads/$BRANCH" -f sha="$LATEST_MAIN_SHA" || exit 1
             echo "✅ Branch $BRANCH created from $DEFAULT_BRANCH"
-
+      
             # Small delay to ensure branch is available
             sleep 2
           else
@@ -427,7 +384,7 @@ runs:
             if [ -n "$BRANCH_FILE_CONTENT" ]; then
               BRANCH_IMAGE=$(echo "$BRANCH_FILE_CONTENT" | grep -E "^\s*(image|uses):" | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'")
               BRANCH_VERSION=$(echo "$BRANCH_IMAGE" | grep -oE '[^:]+$')
-
+      
               if [ "$BRANCH_VERSION" = "$NEW_VERSION" ]; then
                 echo "✅ Branch $BRANCH already has version $NEW_VERSION. No update needed."
                 echo ""
@@ -435,19 +392,19 @@ runs:
                 continue
               fi
             fi
-
+      
             echo "🔄 Updating $BRANCH in $PUBLIC_REPO to match $DEFAULT_BRANCH..."
             gh api repos/"$PUBLIC_REPO"/git/refs/heads/"$BRANCH" -X PATCH -f sha="$LATEST_MAIN_SHA" -F "force=true" || exit 1
             echo "✅ Branch $BRANCH updated to match $DEFAULT_BRANCH"
           fi
-
+      
           # Update the image in action file - use IMAGE_PATTERN for precise matching
           # This ensures we only replace the specific action image, not helper images
           ESCAPED_CURRENT_IMAGE=$(echo "$CURRENT_IMAGE" | sed 's|/|\\/|g')
           ESCAPED_NEW_IMAGE=$(echo "$NEW_IMAGE" | sed 's|/|\\/|g')
           NEW_CONTENT=$(echo "$CURRENT_CONTENT" | sed "s|${ESCAPED_CURRENT_IMAGE}|${ESCAPED_NEW_IMAGE}|g")
           ENCODED_CONTENT=$(echo "$NEW_CONTENT" | base64 -w 0)
-
+      
           # Commit the change
           echo "🔄 Updating $ACTION_FILE_PATH with new image version..."
           gh api repos/"$PUBLIC_REPO"/contents/"$ACTION_FILE_PATH" -X PUT \
@@ -456,21 +413,21 @@ runs:
             -f sha="$CURRENT_FILE_SHA" \
             -f branch="$BRANCH"
           echo "✅ File $ACTION_FILE_PATH updated on branch $BRANCH"
-
+      
           # Build PR title and body
           PR_TITLE="Update Docker image to $NEW_VERSION"
           PR_BODY="This PR updates the Docker image to version \`$NEW_VERSION\`."
-
+      
           # Get previous version from evidence data (already extracted from HEAD~1)
           PREVIOUS_VERSION=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "")
-
+      
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "empty" ]; then
             echo "📜 Previous version: $PREVIOUS_VERSION"
           else
             echo "⚠️  No previous version found"
             PREVIOUS_VERSION=""
           fi
-
+      
           # Construct comparison URL if we have previous version
           COMPARE_URL=""
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
@@ -482,31 +439,17 @@ runs:
             fi
             SOURCE_REPO="calculi-corp/$SOURCE_REPO_NAME"
             echo "🔍 Source repository: $SOURCE_REPO"
-
+      
             # Strip 'main-' prefix from versions for comparison
             COMPARE_PREVIOUS_VERSION=$(echo "$PREVIOUS_VERSION" | sed 's/^main-//')
             COMPARE_NEW_VERSION=$(echo "$NEW_VERSION" | sed 's/^main-//')
-
-            # Get SHAs for the version tags from the source repository
-            echo "🔍 Fetching commit SHAs for version tags (${COMPARE_PREVIOUS_VERSION} and ${COMPARE_NEW_VERSION})..."
-            PREVIOUS_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$COMPARE_PREVIOUS_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
-            NEW_SHA=$(gh api repos/"$SOURCE_REPO"/git/ref/tags/"$COMPARE_NEW_VERSION" --jq '.object.sha' 2>/dev/null || echo "")
-
-            if [ -n "$PREVIOUS_SHA" ] && [ -n "$NEW_SHA" ]; then
-              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${COMPARE_PREVIOUS_VERSION}...${COMPARE_NEW_VERSION}"
-              echo "📊 Comparison URL: $COMPARE_URL"
-              echo "   Previous: $COMPARE_PREVIOUS_VERSION (SHA: $PREVIOUS_SHA)"
-              echo "   New: $COMPARE_NEW_VERSION (SHA: $NEW_SHA)"
-              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$COMPARE_PREVIOUS_VERSION" "$COMPARE_NEW_VERSION" "$COMPARE_URL")
-            else
-              echo "⚠️  Unable to fetch SHAs for version tags (tags may not exist in source repo)"
-              # Fallback to version-based comparison
-              COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${COMPARE_PREVIOUS_VERSION}...${COMPARE_NEW_VERSION}"
-              echo "📊 Comparison URL (using versions): $COMPARE_URL"
-              PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$COMPARE_PREVIOUS_VERSION" "$COMPARE_NEW_VERSION" "$COMPARE_URL")
-            fi
+      
+            # Build compare URL using versions
+            COMPARE_URL="https://github.com/${SOURCE_REPO}/compare/${COMPARE_PREVIOUS_VERSION}...${COMPARE_NEW_VERSION}"
+            echo "📊 Comparison URL: $COMPARE_URL"
+            PR_BODY=$(printf '%s\n\n### Changes\n[View changes between %s and %s](%s)' "$PR_BODY" "$COMPARE_PREVIOUS_VERSION" "$COMPARE_NEW_VERSION" "$COMPARE_URL")
           fi
-
+      
           # Extract Jira IDs from git log if in source repository
           JIRA_IDS=""
           if [ -n "$PREVIOUS_VERSION" ] && [ "$PREVIOUS_VERSION" != "$NEW_VERSION" ]; then
@@ -516,21 +459,21 @@ runs:
               JIRA_IDS=$(printf '%s\n' "$GIT_LOG" | grep -oE '\[CBP-[0-9]+\]' | sort -u | tr -d '\n' || echo "")
             fi
           fi
-
+      
           if [ -n "$JIRA_IDS" ]; then
             PR_TITLE="${JIRA_IDS} ${PR_TITLE}"
             echo "🎫 Found Jira IDs: $JIRA_IDS"
           fi
-
+      
           # Add note about draft status and SRE ticket
           PR_BODY=$(printf '%s\n\n---\n\n⚠️ **Note:** This PR should remain in DRAFT status until the Docker image is available in the public registry.\n\nA Jira ticket will be automatically created for SRE to:\n1. Merge this PR\n2. Create a new tag for the release' "$PR_BODY")
-
+      
           echo "📝 PR Title: $PR_TITLE"
-
+      
           # Check for existing PR
           echo "🔄 Checking for pre-existing pull request..."
           EXISTING_PR=$(gh api repos/"$PUBLIC_REPO"/pulls --jq '.[] | select(.head.ref == "'"$BRANCH"'") | .number' | head -n 1)
-
+      
           if [ -z "$EXISTING_PR" ]; then
             echo "🔄 Creating a new DRAFT pull request..."
             EXISTING_PR=$(gh api repos/"$PUBLIC_REPO"/pulls -X POST \
@@ -557,11 +500,11 @@ runs:
               echo "✅ Pull request #$EXISTING_PR updated"
             fi
           fi
-
+      
           echo ""
           echo "✅ Draft pull request created at https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
           echo ""
-
+      
           # Update evidence with PR info (append for multiple repos)
           if [ -f "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" ] && [ "$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url")" != "-" ]; then
             echo "$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"), https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url"
@@ -570,270 +513,5 @@ runs:
           fi
           echo "✅ PR Created" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
 
-          # Get version tags
-          ACTION_MAJOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+$' | sort -V | tail -1)
-          ACTION_MINOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-          if [ -z "$ACTION_MAJOR_VERSION" ] || [ -z "$ACTION_MINOR_VERSION" ]; then
-            echo "⚠️ Unable to find the MAJOR/MINOR version tags in $PUBLIC_REPO repository."
-            echo "⚠️ Skipping Jira ticket creation for this action."
-            echo "⚠️ Missing version tags in $PUBLIC_REPO" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
-            continue
-          fi
-
-          echo "📌 Latest MAJOR version tag: $ACTION_MAJOR_VERSION"
-          echo "📌 Latest MINOR version tag: $ACTION_MINOR_VERSION"
-          MAJOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f1)
-          MINOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f2)
-          PATCH=$(echo $ACTION_MINOR_VERSION | cut -d. -f3)
-          NEW_PATCH_VERSION=$((PATCH + 1))
-          NEW_MINOR_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
-          echo "🔖 New version tag to be created: $NEW_MINOR_VERSION"
-
-          # Create Jira ticket
-          echo "🔄 Creating Jira ticket for SRE... (CBP SRE Respone Team)"
-          JIRA_BASE_URL="https://cloudbees.atlassian.net"
-          JIRA_TEAM_FIELD_ID="customfield_12000"
-          JIRA_TEAM_ID="de72d37f-5d58-48a5-a466-455eac216fa1"
-
-          JIRA_SUMMARY="[SRE] Merge PR and create release tag for $ACTION_NAME with version $ACTION_MAJOR_VERSION and $NEW_MINOR_VERSION"
-          PUBLIC_REPO_PR_URL="https://github.com/$PUBLIC_REPO/pull/$EXISTING_PR"
-
-          # Load Jira description template and replace placeholders
-          TEMPLATE_FILE="actions/sync-public-action-versions/jira-ticket-template.json"
-          if [ ! -f "$TEMPLATE_FILE" ]; then
-            echo "⚠️ Jira template file not found: $TEMPLATE_FILE"
-            echo "⚠️ Skipping Jira ticket creation for this action."
-            echo "⚠️ Jira template file not found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
-            continue
-          fi
-
-          JIRA_DESCRIPTION=$(jq \
-            --arg repo "$PUBLIC_REPO" \
-            --arg major "$ACTION_MAJOR_VERSION" \
-            --arg minor "$NEW_MINOR_VERSION" \
-            --arg helmfiles_pr "$PLATFORM_HELMFILES_PR" \
-            --arg pr_url "$PUBLIC_REPO_PR_URL" \
-            --arg compare "$COMPARE_URL" \
-            'walk(if type == "string" then
-              gsub("{{PUBLIC_REPO}}"; $repo) |
-              gsub("{{ACTION_MAJOR_VERSION}}"; $major) |
-              gsub("{{NEW_MINOR_VERSION}}"; $minor) |
-              gsub("{{PLATFORM_HELMFILES_PR}}"; $helmfiles_pr) |
-              gsub("{{PUBLIC_REPO_PR_URL}}"; $pr_url) |
-              gsub("{{COMPARE_URL}}"; $compare)
-            else . end)' \
-            "$TEMPLATE_FILE")
-
-          # Create Jira payload with optional Team field
-          if [ -n "$JIRA_TEAM_FIELD_ID" ] && [ -n "$JIRA_TEAM_ID" ]; then
-            echo "📋 Creating ticket to team ID: $JIRA_TEAM_ID (field: $JIRA_TEAM_FIELD_ID)"
-
-            # Now we can use --argjson safely since JIRA_DESCRIPTION is built with jq
-            JIRA_PAYLOAD=$(jq -n \
-              --arg summary "$JIRA_SUMMARY" \
-              --argjson description "$JIRA_DESCRIPTION" \
-              --arg team_field "$JIRA_TEAM_FIELD_ID" \
-              --arg team_id "$JIRA_TEAM_ID" \
-              '{
-                fields: (
-                  {
-                    project: { key: "CBP" },
-                    summary: $summary,
-                    description: $description,
-                    issuetype: { name: "Task" },
-                    labels: ["sre", "automation", "public-actions-release"]
-                  } + {
-                    ($team_field): $team_id
-                  }
-                )
-              }')
-          else
-            JIRA_PAYLOAD=$(jq -n \
-              --arg summary "$JIRA_SUMMARY" \
-              --argjson description "$JIRA_DESCRIPTION" \
-              '{
-                fields: {
-                  project: { key: "CBP" },
-                  summary: $summary,
-                  description: $description,
-                  issuetype: { name: "Task" },
-                  labels: ["sre", "automation", "public-actions-release"]
-                }
-              }')
-          fi
-
-          # Create Jira ticket using wget
-          echo "🔧 Creating Jira ticket via API..."
-          # jira-api-token should be in "email:api_token" format, encode it for Basic Auth
-          JIRA_AUTH_ENCODED=$(echo -n "${{ inputs.jira-api-token }}" | base64 -w 0 2>/dev/null || echo -n "${{ inputs.jira-api-token }}" | base64)
-          echo "$JIRA_PAYLOAD" > /tmp/jira_payload.json
-          JIRA_RESPONSE=$(wget -q -O - \
-            --header="Content-Type: application/json" \
-            --header="Authorization: Basic $JIRA_AUTH_ENCODED" \
-            --post-file=/tmp/jira_payload.json \
-            "$JIRA_BASE_URL/rest/api/3/issue" 2>&1 || echo '{"error":"wget failed"}')
-          rm -f /tmp/jira_payload.json
-
-          # Try to extract ticket key (don't fail if Jira call failed)
-          JIRA_TICKET_KEY=$(echo "$JIRA_RESPONSE" | jq -r '.key // empty' 2>/dev/null || echo "")
-
-          if [ -n "$JIRA_TICKET_KEY" ]; then
-            echo "✅ Jira ticket created: $JIRA_BASE_URL/browse/$JIRA_TICKET_KEY"
-            echo "$JIRA_BASE_URL/browse/$JIRA_TICKET_KEY" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
-
-            # Update PR body to include Jira ticket link
-            JIRA_TICKET_URL="$JIRA_BASE_URL/browse/$JIRA_TICKET_KEY"
-            UPDATED_PR_BODY=$(printf '%s\n\n📋 **Jira Ticket:** [%s](%s)' "$PR_BODY" "$JIRA_TICKET_KEY" "$JIRA_TICKET_URL")
-
-            echo "🔄 Updating PR #$EXISTING_PR with Jira ticket link..."
-            gh api repos/"$PUBLIC_REPO"/pulls/"$EXISTING_PR" -X PATCH \
-              -f body="$UPDATED_PR_BODY" 2>/dev/null || echo "⚠️ Failed to update PR body with Jira ticket (non-blocking)"
-          else
-            echo "⚠️ Failed to create Jira ticket (non-blocking)"
-            echo "📋 Response: ${JIRA_RESPONSE:0:200}"
-            JIRA_ERROR=$(echo "$JIRA_RESPONSE" | jq -r '.errorMessages[0] // .error // "API call failed"' 2>/dev/null || echo "API call failed")
-            echo "⚠️ $JIRA_ERROR" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
-          fi
-
-          done  # End of PUBLIC_REPO loop
-
-        done  # End of ACTION_NAME loop
-
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Summary"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "✅ Processed $CHANGED_COUNT changed action(s)"
-        echo "🎯 Next steps:"
-        echo "   1. Review the draft PRs created in public repositories"
-        echo "   2. Verify Docker images are available in public registry"
-        echo "   3. Create Jira ticket for SRE (related to CBP-36642)"
-        echo "   4. SRE will merge PRs and create release tags"
-
-        # Generate evidence report
-        echo ""
-        echo "🔄 Generating evidence report..."
-
-        # Set variables for evidence report
-        CLOUDBEES_RUN_ID="${{ cloudbees.run_id }}"
-        CLOUDBEES_COMMIT_SHA="${{ cloudbees.scm.sha }}"
-        CLOUDBEES_BRANCH="${{ cloudbees.scm.branch }}"
-        GENERATED_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
-
-        # Initialize evidence report with proper formatting
-        cat > "$EVIDENCE_FILE" << EVIDENCE_HEADER
-        ## Sync Public Action Versions - Evidence Report
-
-        **Generated:** $GENERATED_TIME
-        **Workflow Run:** $CLOUDBEES_RUN_ID
-        **Commit:** $CLOUDBEES_COMMIT_SHA
-        **Branch:** $CLOUDBEES_BRANCH
-
-        ### Actions Changed
-
-        | Action Name | Old Version | New Version | PR Created | Jira Ticket | Status |
-        |-------------|-------------|-------------|------------|-------------|--------|
-        EVIDENCE_HEADER
-
-        # Count statistics
-        SUCCESS_COUNT=0
-        ERROR_COUNT=0
-
-        # Build evidence table rows
-        for ACTION_NAME in $CHANGED_ACTIONS; do
-          OLD_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.old_version" 2>/dev/null || echo "unknown")
-          NEW_VER=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.new_version" 2>/dev/null || echo "unknown")
-          PR_URL=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.pr_url" 2>/dev/null || echo "-")
-          JIRA_TICKET=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket" 2>/dev/null || echo "-")
-          STATUS=$(cat "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status" 2>/dev/null || echo "Unknown")
-
-          # Truncate versions for display (keep first 35 chars)
-          OLD_VER_SHORT="$OLD_VER"
-          NEW_VER_SHORT="$NEW_VER"
-          if [ ${#OLD_VER} -gt 35 ]; then
-            OLD_VER_SHORT="$(echo "$OLD_VER" | head -c 32)..."
-          fi
-          if [ ${#NEW_VER} -gt 35 ]; then
-            NEW_VER_SHORT="$(echo "$NEW_VER" | head -c 32)..."
-          fi
-
-          # Format PR URL(s) for markdown (handle comma-separated multiple URLs)
-          case "$PR_URL" in
-            *,*)
-              # Multiple URLs - format each
-              PR_LINK=""
-              for URL in $(echo "$PR_URL" | tr ',' ' '); do
-                PR_NUM=$(echo "$URL" | grep -oE '[0-9]+$')
-                if [ -n "$PR_LINK" ]; then
-                  PR_LINK="$PR_LINK, [PR #$PR_NUM]($URL)"
-                else
-                  PR_LINK="[PR #$PR_NUM]($URL)"
-                fi
-              done
-              ;;
-            https://*)
-              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
-              PR_LINK="[PR #$PR_NUMBER]($PR_URL)"
-              ;;
-            *)
-              PR_LINK="$PR_URL"
-              ;;
-          esac
-
-          # Format Jira ticket for markdown
-          case "$JIRA_TICKET" in
-            https://*)
-              JIRA_KEY=$(echo "$JIRA_TICKET" | grep -oE 'CBP-[0-9]+$')
-              JIRA_LINK="[$JIRA_KEY]($JIRA_TICKET)"
-              ;;
-            "⚠️ "*)
-              JIRA_LINK="$JIRA_TICKET"
-              ;;
-            *)
-              JIRA_LINK="$JIRA_TICKET"
-              ;;
-          esac
-
-          # Count statistics
-          case "$STATUS" in
-            *"✅"*)
-              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-              ;;
-            *"❌"*|*"⚠️"*)
-              ERROR_COUNT=$((ERROR_COUNT + 1))
-              ;;
-          esac
-
-          # Add table row
-          echo "| $ACTION_NAME | \`$OLD_VER_SHORT\` | \`$NEW_VER_SHORT\` | $PR_LINK | $JIRA_LINK | $STATUS |" >> "$EVIDENCE_FILE"
-        done
-
-        # Add summary section
-        cat >> "$EVIDENCE_FILE" << EVIDENCE_FOOTER
-
-        ---
-
-        ### Summary Statistics
-
-        - **Total Actions Changed:** $CHANGED_COUNT
-        - **Successful PR Creations:** $SUCCESS_COUNT
-        - **Errors/Warnings:** $ERROR_COUNT
-
-        ### Next Steps
-
-        1. ✅ Review all draft PRs in their respective repositories
-        2. ⏳ Wait for Docker images to be available in public registry
-        3. 📋 Monitor Jira tickets for SRE team actions
-        4. 🏷️ Verify release tags are created after PR merges
-
-        ---
-
-        **Repository:** calculi-corp/platform-helmfiles
-        EVIDENCE_FOOTER
-
-        # Output evidence to CloudBees output
-        if [ -f "$EVIDENCE_FILE" ]; then
-          cat "$EVIDENCE_FILE" > $CLOUDBEES_OUTPUTS/evidence
-          echo "✅ Evidence report generated and saved to outputs"
-        else
-          echo "❌ ERROR: Evidence file not created"
-        fi
+          done  # for PUBLIC_REPO
+        done  # for ACTION_NAME
