@@ -1,0 +1,49 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: Workflow
+name: promote-action-artifacts-main
+
+on:
+  push:
+    branches:
+      - "master"
+
+permissions:
+  id-token: write
+  scm-token-own: read
+  scm-token-org: read
+
+jobs:
+  promote-actions-main:
+    environment: prod
+    steps:
+      - name: Get source code
+        uses: cloudbees-io/checkout@v2
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Detect changed artifacts
+        id: check-changes
+        uses: docker://python:3.11-slim
+        run: |
+          apt-get update > /dev/null 2>&1 && apt-get install -y git > /dev/null 2>&1
+          echo -n "true" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
+          export CHANGED_JSON='{"public":{"actions":{"cbci-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2c","publish-test-results":"main-652cccea402d3a3f341ccfd8f4196e4ff02c6c3c"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+          echo -n $CHANGED_JSON  > $CLOUDBEES_OUTPUTS/input_file
+      - name: Sync action versions to public repos
+        id: sync-actions
+        if: ${{ steps.check-changes.outputs.changed == 'true' }}
+        uses: ./actions/sync-public-action-versions
+        with:
+          app-id: ${{ vars.cloudbees_platform_app_id }}
+          calculi-corp-installation-id: ${{ vars.calculi_corp_installation_id }}
+          cloudbees-io-installation-id: ${{ vars.cloudbees_io_installation_id }}
+          cloudbees-io-gha-installation-id: ${{ vars.cloudbees_io_gha_installation_id }}
+          private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
+          jira-api-token: ${{ secrets.JIRA_WRITE_ACTION_RELEASE_API_TOKEN }}
+          input-file: ${{ steps.check-changes.outputs.input_file }}
+      - name: Publish workflow evidence
+        if: ${{ steps.check-changes.outputs.changed == 'true' }}
+        uses: cloudbees-io/publish-evidence-item@v1
+        with:
+          content: ${{ steps.sync-actions.outputs.evidence-report }}
