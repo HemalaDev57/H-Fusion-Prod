@@ -43,7 +43,7 @@ jobs:
           private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
           jira-api-token: ${{ secrets.JIRA_WRITE_ACTION_RELEASE_API_TOKEN }}
           input-file: ${{ steps.check-changes.outputs.input_file }}
-      - name: Publish workflow evidence
+      - name: Publish workflow evidences
         if: ${{ steps.check-changes.outputs.changed == 'true' }}
         uses: cloudbees-io/publish-evidence-item@v1
         with:
