@@ -28,8 +28,9 @@ jobs:
         run: |
           apt-get update > /dev/null 2>&1 && apt-get install -y git > /dev/null 2>&1
           echo -n "true" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
-          export CHANGED_JSON='"{"public":{"actions":{"cbci-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2c","publish-test-results":"main-652cccea402d3a3f341ccfd8f4196e4ff02c6c3c"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}"'
-          echo -n $CHANGED_JSON  > $CLOUDBEES_OUTPUTS/input_file
+          export CHANGED_JSON='{"public":{"actions":{"cbci-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2c","publish-test-results":"main-652cccea402d3a3f341ccfd8f4196e4ff02c6c3c"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+          echo -n "$CHANGED_JSON"  > $CLOUDBEES_OUTPUTS/input_file
+          ACTION_NAMES=$(echo "$CHANGED_JSON" | jq -r '.public.actions | keys[]')
       - name: Sync action versions to public repos
         id: sync-actions
         if: ${{ steps.check-changes.outputs.changed == 'true' }}
