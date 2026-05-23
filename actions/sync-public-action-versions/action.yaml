@@ -39,13 +39,16 @@ runs:
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
       run: |
         set -e
-
+        ls -lrt
+        ls -lrt support_scripts/
+        ls -lrt $CLOUDBEES_OUTPUTS/
         EVIDENCE_FILE="/tmp/evidence_report.md"
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
         echo ${{ inputs.input-file }}
-        ARTIFACTS_JSON=$(cat ${{ inputs.input-file }})
+        INPUT_FILE=${{ inputs.input-file }}
+        ARTIFACTS_JSON=$(cat $CLOUDBEES_OUTPUTS/$INPUT_FILE)
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
