@@ -29,11 +29,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Get source code
-      uses: cloudbees-io/checkout@v2
-      with:
-        fetch-depth: 0
-
     - name: Sync image versions in public repositories
       id: sync
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
