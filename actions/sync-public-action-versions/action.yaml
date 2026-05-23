@@ -45,7 +45,7 @@ runs:
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
         echo ${{ inputs.input-file }}
-        ARTIFACTS_JSON=$(echo -n '${{ inputs.input-file }}')
+        ARTIFACTS_JSON=$(cat ${{ inputs.input-file }})
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
@@ -116,7 +116,7 @@ runs:
 
         # Validate previous JSON if not empty
         if [ "$PREVIOUS_JSON" != "{}" ] && ! echo "$PREVIOUS_JSON" | jq empty 2>/dev/null; then
-          echo "⚠️  WARNING: Previous version of $ARTIFACTS_JSON contains invalid JSON, treating as empty"
+          echo "⚠️  WARNING: Previous version of $ARTIFACTS_FILE contains invalid JSON, treating as empty"
           PREVIOUS_JSON="{}"
         fi
         
