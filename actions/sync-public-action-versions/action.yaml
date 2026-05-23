@@ -43,7 +43,7 @@ runs:
         ARTIFACTS_FILE="versioning/action_artifacts.json"
         echo ${{ inputs.input-file }}
         INPUT_FILE=${{ inputs.input-file }}
-        ARTIFACTS_JSON=$(cat $CLOUDBEES_OUTPUTS/$INPUT_FILE)
+        ARTIFACTS_JSON=$(cat $INPUT_FILE)
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
