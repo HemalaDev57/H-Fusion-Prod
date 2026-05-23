@@ -53,7 +53,9 @@ jobs:
             echo -n "false" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
             echo -n "" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
           fi
-
+          ls -lrt
+          ls -lrt support_scripts/
+          cat $CLOUDBEES_OUTPUTS/input_file
       - name: Sync action versions to public repos
         id: sync-actions
         if: ${{ steps.check-changes.outputs.changed == 'true' }}
