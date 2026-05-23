@@ -56,6 +56,8 @@ jobs:
           ls -lrt
           ls -lrt support_scripts/
           cat $CLOUDBEES_OUTPUTS/input_file
+          JSON_CONTENT=$(jq '.' "$CLOUDBEES_OUTPUTS/input_file")
+          echo $JSON_CONTENT
       - name: Sync action versions to public repos
         id: sync-actions
         if: ${{ steps.check-changes.outputs.changed == 'true' }}
