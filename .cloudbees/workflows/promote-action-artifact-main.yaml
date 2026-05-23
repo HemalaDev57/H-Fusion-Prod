@@ -26,11 +26,34 @@ jobs:
         id: check-changes
         uses: docker://python:3.11-slim
         run: |
-          apt-get update > /dev/null 2>&1 && apt-get install -y git jq > /dev/null 2>&1
-          echo -n "true" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
-          export CHANGED_JSON='{"public":{"actions":{"cbci-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2c","publish-test-results":"main-652cccea402d3a3f341ccfd8f4196e4ff02c6c3c"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
-          echo -n "$CHANGED_JSON"  > $CLOUDBEES_OUTPUTS/input_file
-          ACTION_NAMES=$(echo "$CHANGED_JSON" | jq -r '.public.actions | keys[]')
+          apt-get update > /dev/null 2>&1 && apt-get install -y git > /dev/null 2>&1
+
+          if git diff --name-only HEAD~1 HEAD | grep -q "versioning/action_artifacts.json"; then
+            # Changes detected - process the artifacts
+            echo "action_artifacts.json was modified - detecting changed artifacts"
+
+            # Extract before and after versions
+            git show HEAD~1:versioning/action_artifacts.json > /tmp/before.json
+            cp versioning/action_artifacts.json /tmp/after.json
+
+            # Try selective filtering - write to workspace directory
+            echo "Attempting selective artifact filtering..."
+            if python3 support_scripts/filter_changed_artifacts.py /tmp/before.json /tmp/after.json support_scripts/filtered_artifacts.json; then
+              echo "✅ Selective filtering successful - promoting only changed artifacts"
+              echo -n "support_scripts/filtered_artifacts.json" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
+            else
+              echo "⚠️  Selective filtering FAILED - falling back to promoting ALL artifacts"
+              echo -n "versioning/action_artifacts.json" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
+            fi
+
+            echo -n "true" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
+          else
+            # No changes detected
+            echo "action_artifacts.json not modified - skipping promotion"
+            echo -n "false" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
+            echo -n "" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
+          fi
+
       - name: Sync action versions to public repos
         id: sync-actions
         if: ${{ steps.check-changes.outputs.changed == 'true' }}
@@ -41,9 +64,8 @@ jobs:
           cloudbees-io-installation-id: ${{ vars.cloudbees_io_installation_id }}
           cloudbees-io-gha-installation-id: ${{ vars.cloudbees_io_gha_installation_id }}
           private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
-          jira-api-token: ${{ secrets.JIRA_WRITE_ACTION_RELEASE_API_TOKEN }}
           input-file: ${{ steps.check-changes.outputs.input_file }}
-      - name: Publish workflow evidences
+      - name: Publish workflow evidence
         if: ${{ steps.check-changes.outputs.changed == 'true' }}
         uses: cloudbees-io/publish-evidence-item@v1
         with:
