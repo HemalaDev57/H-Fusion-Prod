@@ -39,7 +39,7 @@ runs:
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
-        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2d"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2e"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
