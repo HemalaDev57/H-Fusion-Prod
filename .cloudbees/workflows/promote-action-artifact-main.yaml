@@ -22,43 +22,8 @@ jobs:
           ref: master
           fetch-depth: 2
 
-      - name: Detect changed artifacts
-        id: check-changes
-        uses: docker://python:3.11-slim
-        run: |
-          apt-get update > /dev/null 2>&1 && apt-get install -y git > /dev/null 2>&1
-
-          if git diff --name-only HEAD~1 HEAD | grep -q "versioning/action_artifacts.json"; then
-            # Changes detected - process the artifacts
-            echo "action_artifacts.json was modified - detecting changed artifacts"
-
-            # Extract before and after versions
-            git show HEAD~1:versioning/action_artifacts.json > /tmp/before.json
-            cp versioning/action_artifacts.json /tmp/after.json
-
-            # Try selective filtering - write to workspace directory
-            echo "Attempting selective artifact filtering..."
-            if python3 support_scripts/filter_changed_artifacts.py /tmp/before.json /tmp/after.json support_scripts/filtered_artifacts.json; then
-              echo "✅ Selective filtering successful - promoting only changed artifacts"
-              echo -n "support_scripts/filtered_artifacts.json" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
-            else
-              echo "⚠️  Selective filtering FAILED - falling back to promoting ALL artifacts"
-              echo -n "versioning/action_artifacts.json" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
-            fi
-
-            echo -n "true" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
-          else
-            # No changes detected
-            echo "action_artifacts.json not modified - skipping promotion"
-            echo -n "false" | tr -d '\n' > $CLOUDBEES_OUTPUTS/changed
-            echo -n "" | tr -d '\n' > $CLOUDBEES_OUTPUTS/input_file
-          fi
-          ls -lrt
-          ls -lrt support_scripts/
-          cat $CLOUDBEES_OUTPUTS/input_file
       - name: Sync action versions to public repos
         id: sync-actions
-        if: ${{ steps.check-changes.outputs.changed == 'true' }}
         uses: ./actions/sync-public-action-versions
         with:
           app-id: ${{ vars.cloudbees_platform_app_id }}
