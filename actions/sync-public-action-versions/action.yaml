@@ -19,7 +19,7 @@ inputs:
     required: true
     description: The PEM encoded private key of the GitHub application, Base64 encoded
   input-file:
-    required: true
+    required: false
     description: The path to the action_artifacts.json file containing the updated action versions
 outputs:
   evidence-report:
