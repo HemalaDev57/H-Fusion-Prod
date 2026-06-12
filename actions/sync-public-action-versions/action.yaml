@@ -18,9 +18,6 @@ inputs:
   private-key-b64:
     required: true
     description: The PEM encoded private key of the GitHub application, Base64 encoded
-  input-file:
-    required: true
-    description: The path to the action_artifacts.json file containing the updated action versions
   major-bump:
     required: false
     default: "true"
