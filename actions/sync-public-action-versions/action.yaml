@@ -40,7 +40,7 @@ runs:
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
-        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2a"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2e"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
@@ -428,11 +428,10 @@ runs:
           echo "📌 Latest MINOR version tag: $ACTION_MINOR_VERSION"
 
           if [ ${{ inputs.major-bump }} = "true" ]; then
-            MAJOR_VER=$(echo "$ACTION_MAJOR_VERSION" | sed 's/^v//')            
+            MAJOR_VER=$(echo "$ACTION_MAJOR_VERSION" | sed 's/^v//')
             NEW_MINOR_VERSION="v$((MAJOR_VER + 1)).0.0"
             NEW_MAJOR_VERSION="v$((MAJOR_VER + 1))"
           else 
-            echo "inside else"
             NEW_PATCH_VERSION=$((PATCH + 1))
             NEW_MINOR_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
             NEW_MAJOR_VERSION=$ACTION_MAJOR_VERSION
@@ -470,8 +469,34 @@ runs:
               -F force=true
             echo "✅ Major version tag $NEW_MAJOR_VERSION updated"
           fi
+          # Create or update the GitHub release for the major version tag
+          echo "🔄 Checking for existing release on $NEW_MAJOR_VERSION..."
+          RELEASE_JSON=$(gh api repos/"$PUBLIC_REPO"/releases 2>/dev/null | \
+          jq --arg tag "$NEW_MAJOR_VERSION" '[.[] | select(.tag_name == $tag)] | first // {}')
+          RELEASE_ID=$(printf '%s\n' "$RELEASE_JSON" | jq -r '.id // empty')
+          
+          if [ "${{ inputs.major-bump }}" = "true" ] || [ -z "$RELEASE_ID" ]; then
+            echo "🚀 Creating release $NEW_MAJOR_VERSION..."
+            gh api repos/"$PUBLIC_REPO"/releases -X POST \
+            -f tag_name="$NEW_MAJOR_VERSION" \
+            -f name="$NEW_MAJOR_VERSION" \
+            -f body="$COMMIT_MSG"
+            echo "✅ Release $NEW_MAJOR_VERSION  created"
+          else
+            echo "🔄 Updating release $NEW_MAJOR_VERSION (prepending new notes)..."
+            EXISTING_NOTES=$(printf '%s\n' "$RELEASE_JSON" | jq -r '.body // ""')
+            if [ -n "$EXISTING_NOTES" ]; then
+              UPDATED_NOTES=$(printf '%s\n\n%s' "$COMMIT_MSG" "$EXISTING_NOTES")
+            else
+              UPDATED_NOTES="$COMMIT_MSG"
+            fi
+            gh api repos/"$PUBLIC_REPO"/releases/"$RELEASE_ID" -X PATCH \
+            -f tag_name="$NEW_MAJOR_VERSION" \
+            -f body="$UPDATED_NOTES"
+            echo "✅  Release $NEW_MAJOR_VERSION updated"
+          fi
 
-          # Update evidence status with tag info
+  # Update evidence status with tag info
           echo "✅ Committed ($NEW_MINOR_VERSION, $ACTION_MAJOR_VERSION)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
 
           done  # for PUBLIC_REPO
