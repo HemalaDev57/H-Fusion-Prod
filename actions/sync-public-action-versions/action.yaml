@@ -428,9 +428,9 @@ runs:
           echo "📌 Latest MINOR version tag: $ACTION_MINOR_VERSION"
 
           if [ ${{ inputs.major-bump }} = "true" ]; then
-            echo "Inside if"
-            NEW_MINOR_VERSION="v$((MAJOR + 1)).0.0"
-            NEW_MAJOR_VERSION="v$((MAJOR + 1))"
+            MAJOR_VER=$(echo "$ACTION_MAJOR_VERSION" | sed 's/^v//')            
+            NEW_MINOR_VERSION="v$((MAJOR_VER + 1)).0.0"
+            NEW_MAJOR_VERSION="v$((MAJOR_VER + 1))"
           else 
             echo "inside else"
             NEW_PATCH_VERSION=$((PATCH + 1))
