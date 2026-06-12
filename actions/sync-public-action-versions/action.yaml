@@ -18,6 +18,9 @@ inputs:
   private-key-b64:
     required: true
     description: The PEM encoded private key of the GitHub application, Base64 encoded
+  input-file:
+    required: true
+    description: The path to the action_artifacts.json file containing the updated action versions
   major-bump:
     required: false
     default: "true"
@@ -40,7 +43,7 @@ runs:
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
-        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2s"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2t"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
@@ -417,19 +420,12 @@ runs:
           ACTION_MINOR_VERSION=$(gh api repos/$PUBLIC_REPO/tags --jq '.[].name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           if [ -z "$ACTION_MAJOR_VERSION" ] || [ -z "$ACTION_MINOR_VERSION" ]; then
             echo "⚠️ Unable to find the MAJOR/MINOR version tags in $PUBLIC_REPO repository."
-            echo "⚠️ Skipping Jira ticket creation for this action."
             echo "⚠️ Missing version tags in $PUBLIC_REPO" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.jira_ticket"
             continue
           fi
 
           echo "📌 Latest MAJOR version tag: $ACTION_MAJOR_VERSION"
           echo "📌 Latest MINOR version tag: $ACTION_MINOR_VERSION"
-          MAJOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f1)
-          MINOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f2)
-          PATCH=$(echo $ACTION_MINOR_VERSION | cut -d. -f3)
-          NEW_PATCH_VERSION=$((PATCH + 1))
-          NEW_MINOR_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
-          echo "🔖 New version tag to be created: $NEW_MINOR_VERSION"
 
           if [ "${{ inputs.major-bump }}" = "true" ]; then
             NEW_MINOR_VERSION="v$((MAJOR + 1)).0.0"
@@ -442,6 +438,9 @@ runs:
             NEW_MINOR_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
             NEW_MAJOR_VERSION=$ACTION_MAJOR_VERSION
           fi
+          echo "📌 New MAJOR version tag: $NEW_MAJOR_VERSION"
+          echo "📌 New MINOR version tag: $NEW_MINOR_VERSION"
+
           # Create annotated tag for the new minor/patch version
           echo "🏷️  Creating tag $NEW_MINOR_VERSION at $COMMIT_SHA..."
           NEW_MINOR_TAG_SHA=$(gh api repos/"$PUBLIC_REPO"/git/tags -X POST \
