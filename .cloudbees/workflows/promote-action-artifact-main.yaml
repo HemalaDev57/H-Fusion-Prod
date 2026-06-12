@@ -21,9 +21,50 @@ jobs:
         with:
           ref: master
           fetch-depth: 2
+          
+      - name: Check PR labels
+        id: check-labels
+        uses: docker://alpine:3.20.2
+        run: |
+          apk add --no-cache curl jq > /dev/null 2>&1
+
+          COMMIT_SHA="${{ cloudbees.scm.sha }}"
+          REPO="${{ cloudbees.scm.repository }}"
+          GH_TOKEN="${{ cloudbees.scm.token }}"
+
+          echo "🔍 Looking up PR labels for commit $COMMIT_SHA in $REPO..."
+
+          PR_LABELS=$(curl -s \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/commits/$COMMIT_SHA/pulls" | \
+            jq -r '.[0].labels // [] | .[].name' 2>/dev/null || echo "")
+
+          if [ -z "$PR_LABELS" ]; then
+            echo "ℹ️  No PR found for commit $COMMIT_SHA or no labels set"
+          else
+            echo "📋 PR labels found: $(echo "$PR_LABELS" | tr '\n' ' ')"
+          fi
+
+          if echo "$PR_LABELS" | grep -qx "skip-release"; then
+            echo "🚫 skip-release label detected — skipping sync and evidence steps"
+            echo -n "true" > $CLOUDBEES_OUTPUTS/skip-release
+          else
+            echo "✅ skip-release label not present"
+            echo -n "false" > $CLOUDBEES_OUTPUTS/skip-release
+          fi
+
+          if echo "$PR_LABELS" | grep -qx "major-bump"; then
+            echo "🔼 major-bump label detected"
+            echo -n "true" > $CLOUDBEES_OUTPUTS/major-bump
+          else
+            echo "ℹ️  major-bump label not present"
+            echo -n "false" > $CLOUDBEES_OUTPUTS/major-bump
+          fi
 
       - name: Sync action versions to public repos
         id: sync-actions
+        if: ${{ steps.check-labels.outputs.skip-release != 'true' }}
         uses: ./actions/sync-public-action-versions
         with:
           app-id: ${{ vars.cloudbees_platform_app_id }}
