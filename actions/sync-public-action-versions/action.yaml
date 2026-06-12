@@ -496,7 +496,7 @@ runs:
             echo "✅  Release $NEW_MAJOR_VERSION updated"
           fi
 
-  # Update evidence status with tag info
+          # Update evidence status with tag info
           echo "✅ Committed ($NEW_MINOR_VERSION, $ACTION_MAJOR_VERSION)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
 
           done  # for PUBLIC_REPO
