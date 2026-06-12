@@ -2,6 +2,7 @@
   "_comment": "This file contains versioning information for public and private artifacts, services, and skip lists.",
   "public": {
     "actions": {
+      "temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2f,
       "anchore-container-actions": "main-00cfea731325dd5d516ca56e560cdd23e077a87d",
       "appdynamics-actions": "main-002018d151ae57bab0e5245b591798e9cf1be4bb",
       "aquasec-actions": "main-00e13c225d38b835b0f99354e6ced0484acd6356",
