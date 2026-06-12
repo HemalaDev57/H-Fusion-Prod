@@ -421,6 +421,9 @@ runs:
             continue
           fi
 
+          MAJOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f1)
+          MINOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f2)
+          PATCH=$(echo $ACTION_MINOR_VERSION | cut -d. -f3)
           echo "📌 Latest MAJOR version tag: $ACTION_MAJOR_VERSION"
           echo "📌 Latest MINOR version tag: $ACTION_MINOR_VERSION"
 
@@ -428,9 +431,6 @@ runs:
             NEW_MINOR_VERSION="v$((MAJOR + 1)).0.0"
             NEW_MAJOR_VERSION="v$((MAJOR + 1))"
           else 
-            MAJOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f1)
-            MINOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f2)
-            PATCH=$(echo $ACTION_MINOR_VERSION | cut -d. -f3)
             NEW_PATCH_VERSION=$((PATCH + 1))
             NEW_MINOR_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
             NEW_MAJOR_VERSION=$ACTION_MAJOR_VERSION
