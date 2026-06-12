@@ -40,7 +40,7 @@ runs:
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
-        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2q"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2r"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
@@ -439,7 +439,7 @@ runs:
             MINOR=$(echo $ACTION_MINOR_VERSION | cut -d. -f2)
             PATCH=$(echo $ACTION_MINOR_VERSION | cut -d. -f3)
             NEW_PATCH_VERSION=$((PATCH + 1))
-            NEW_MINOR_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
+            NEW_MINOR_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH_VERSION}"
             NEW_MAJOR_VERSION=$ACTION_MAJOR_VERSION
           fi
           # Create annotated tag for the new minor/patch version
