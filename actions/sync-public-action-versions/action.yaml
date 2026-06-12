@@ -40,7 +40,7 @@ runs:
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
-        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2x"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
+        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2y"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
         MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
 
         if [ -z "$ARTIFACTS_JSON" ]; then
@@ -455,7 +455,10 @@ runs:
 
           # Force-update the major version tag to the same annotated tag object
           echo "🏷️  Updating major version tag $NEW_MAJOR_VERSION..."
-          MAJOR_TAG_EXISTS=$(gh api repos/"$PUBLIC_REPO"/git/refs/tags/"$NEW_MAJOR_VERSION" --silent 2>/dev/null && echo "true" || echo "false")
+          MAJOR_TAG_EXISTS=$(gh api repos/"$PUBLIC_REPO"/git/refs/tags/"$NEW_MAJOR_VERSION" 2>/dev/null \
+            | jq -e --arg ref "refs/tags/$NEW_MAJOR_VERSION" \
+            'if type == "array" then any(.[]; .ref == $ref) else .ref == $ref end' \
+            >/dev/null 2>&1 && echo "true" || echo "false")
           if [ "$MAJOR_TAG_EXISTS" = "false" ]; then
             gh api repos/"$PUBLIC_REPO"/git/refs -X POST \
               -f ref="refs/tags/$NEW_MAJOR_VERSION" \
