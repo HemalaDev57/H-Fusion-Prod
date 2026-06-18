@@ -65,7 +65,7 @@ jobs:
       - name: Generate workflow URL
         uses: docker://alpine/curl:latest
         id: workflow_url
-        if: ${{ steps.check-changes.outputs.changed == 'true' && steps.check-labels.outputs.skip-release != 'true' }}
+        if: ${{ steps.check-labels.outputs.skip-release != 'true' }}
         run: |
           apk add --no-cache jq > /dev/null 2>&1
 
