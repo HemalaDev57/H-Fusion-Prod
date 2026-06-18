@@ -67,32 +67,34 @@ runs:
             local slack_text="${emoji} *${status_text} \\\`${action_name}\\\`*\\n${details}"
 
             # Build JSON payload for Slack API
-            local payload=$(cat <<EOF
-          {
-            "channel": "${{ inputs.slack-channel-id }}",
-            "text": "Public Action Sync: ${action_name}",
-            "blocks": [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "${slack_text}"
-                }
-              },
-              {
-                "type": "context",
-                "elements": [
+            local payload=$(jq -n \
+              --arg channel "${{ inputs.slack-channel-id }}" \
+              --arg text "Public Action Sync: ${action_name}" \
+              --arg slack_text "${slack_text}" \
+              --arg workflow_url "${{ inputs.workflow-url }}" \
+              '{
+                "channel": $channel,
+                "text": $text,
+                "blocks": [
                   {
-                    "type": "mrkdwn",
-                    "text": "<${{ inputs.workflow-url }}|View Workflow>"
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $slack_text
+                    }
+                  },
+                  {
+                    "type": "context",
+                    "elements": [
+                      {
+                        "type": "mrkdwn",
+                        "text": ("<" + $workflow_url + "|View Workflow>")
+                      }
+                    ]
                   }
                 ]
-              }
-            ]
-          }
-            EOF
-            )
-        
+              }')
+
             # Send to Slack using curl
             curl -s -X POST "https://slack.com/api/chat.postMessage" \
             -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
