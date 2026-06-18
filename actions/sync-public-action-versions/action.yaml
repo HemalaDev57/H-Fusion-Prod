@@ -18,6 +18,9 @@ inputs:
   private-key-b64:
     required: true
     description: The PEM encoded private key of the GitHub application, Base64 encoded
+  input-file:
+    required: true
+    description: The path to the action_artifacts.json file containing the updated action versions
   major-bump:
     required: false
     default: "false"
@@ -49,21 +52,41 @@ runs:
           send_slack_notification() {
             local action_name="$1"
             local repo_name="$2"
-            local commit_url="${3:-}"
-            local major_tag_version="${4:-}"
-            local minor_tag_version="${5:-}"
-            local release_version="${6:-}"
-
+            local status="$3"
+            local commit_url="${4:-}"
+            local major_tag_version="${5:-}"
+            local minor_tag_version="${6:-}"
+            local release_version="${7:-}"
+            local error_message="${8:-}"
+        
             # Skip if Slack not configured
             if [ -z "${{ inputs.slack-channel-id }}" ] || [ -z "${{ inputs.slack-bot-token }}" ]; then
               return 0
             fi
 
             # Build the Slack message based on status
-            local emoji=":white_check_mark:"
-            local status_text="Successfully synced"
-            local details="Repository: \`${repo_name}\`\\nMajor Version: \`${major_tag_version}\`\\nMinor Version: \`${minor_tag_version}\`\\nRelease Version: \`${release_version}\`\\n<${commit_url}|View Commit>"
-
+        
+            local emoji=""
+            local status_text=""
+            local details=""
+            
+            case "$status" in
+              "success")
+                  emoji=":white_check_mark:"
+                  status_text="Successfully synced"
+                  details="Repository: \`${repo_name}\`\\nMajor Version: \`${major_tag_version}\`\\nMinor Version: \`${minor_tag_version}\`\\nRelease Version: \`${release_version}\`\\n<${commit_url}|View Commit>"
+                  ;;
+                "tag_failed")
+                  emoji=":x:"
+                  status_text="Tag creation failed"
+                  details="Repository: \`${repo_name}\`\\n<${commit_url}|View Commit>\\nError: ${error_message}"
+                  ;;
+                "release_failed")
+                  emoji=":x:"
+                  status_text="Release creation failed"
+                  details="Repository: \`${repo_name}\`\\nTags: \`${major_tag_version}\`, \`${minor_tag_version}\`\\n<${commit_url}|View Commit>\\nError: ${error_message}"
+                    ;;
+              esac
             local slack_text="${emoji} *${status_text} \\\`${action_name}\\\`*\\n${details}"
 
             # Build JSON payload for Slack API
@@ -101,8 +124,8 @@ runs:
               return 1
             fi
 
-            echo "📤 Payload preview (first 200 chars):"
-            echo "$payload" | head -c 200
+            echo "📤 Payload preview :"
+            echo "$payload"
             echo "..."
 
             # Send to Slack using curl and capture response
@@ -151,9 +174,7 @@ runs:
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
         mkdir -p "$EVIDENCE_DATA_DIR"
         ARTIFACTS_FILE="versioning/action_artifacts.json"
-        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2q"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'
-        MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
-
+        ARTIFACTS_JSON='{"public":{"actions":{"temp-testing-repo-actions":"main-a38f8b3d8933c752b41206ac65f86cee7bbe2d2q"},"custom-jobs":{},"services":{}},"private":{},"skip":{"cassandra":"9.0.6","consul":"1.0.6","metrics-server":"3.11.0","postgresql":"1.1.6","reloader":"1.0.69"}}'        MAPPING_FILE="actions/sync-public-action-versions/action-repo-mapping.json"
         if [ -z "$ARTIFACTS_JSON" ]; then
           echo "Input files $ARTIFACTS_JSON not found, skipping sync"
           exit 0
@@ -557,10 +578,24 @@ runs:
             -f message="Release $NEW_MINOR_VERSION" \
             -f object="$COMMIT_SHA" \
             -f type="commit" \
-            --jq '.sha')
-          gh api repos/"$PUBLIC_REPO"/git/refs -X POST \
+            --jq '.sha' 2>&1)
+          if [ $? -ne 0 ] || [ -z "$NEW_MINOR_TAG_SHA" ] || [ "$NEW_MINOR_TAG_SHA" = "null" ]; then
+            echo "❌ Failed to create annotated tag $NEW_MINOR_VERSION"
+            echo "Error: $NEW_MINOR_TAG_SHA"
+            send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "tag_failed" "$COMMIT_URL" "" "" "" "Failed to create annotated tag $NEW_MINOR_VERSION"
+            echo "❌ Tag creation failed" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+            continue
+          fi
+          TAG_REF_RESULT=$(gh api repos/"$PUBLIC_REPO"/git/refs -X POST \
             -f ref="refs/tags/$NEW_MINOR_VERSION" \
-            -f sha="$NEW_MINOR_TAG_SHA"
+            -f sha="$NEW_MINOR_TAG_SHA" 2>&1)
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to create tag reference $NEW_MINOR_VERSION"
+            echo "Error: $TAG_REF_RESULT"
+            send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "tag_failed" "$COMMIT_URL" "" "" "" "Failed to create tag reference $NEW_MINOR_VERSION"
+            echo "❌ Tag reference creation failed" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+            continue
+          fi
           echo "✅ Tag $NEW_MINOR_VERSION created"
 
           # Force-update the major version tag to the same annotated tag object
@@ -570,14 +605,28 @@ runs:
             'if type == "array" then any(.[]; .ref == $ref) else .ref == $ref end' \
             >/dev/null 2>&1 && echo "true" || echo "false")
           if [ "$MAJOR_TAG_EXISTS" = "false" ]; then
-            gh api repos/"$PUBLIC_REPO"/git/refs -X POST \
+            MAJOR_TAG_RESULT=$(gh api repos/"$PUBLIC_REPO"/git/refs -X POST \
               -f ref="refs/tags/$NEW_MAJOR_VERSION" \
-              -f sha="$NEW_MINOR_TAG_SHA"
+              -f sha="$NEW_MINOR_TAG_SHA" 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to create major version tag $NEW_MAJOR_VERSION"
+              echo "Error: $MAJOR_TAG_RESULT"
+              send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "tag_failed" "$COMMIT_URL" "$NEW_MAJOR_VERSION" "$NEW_MINOR_VERSION" "" "Failed to create major tag $NEW_MAJOR_VERSION"
+              echo "❌ Major tag creation failed" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi        
             echo "✅ Major version tag $NEW_MAJOR_VERSION created"
           else
-            gh api repos/"$PUBLIC_REPO"/git/refs/tags/"$NEW_MAJOR_VERSION" -X PATCH \
+            MAJOR_TAG_RESULT=$(gh api repos/"$PUBLIC_REPO"/git/refs/tags/"$NEW_MAJOR_VERSION" -X PATCH \
               -f sha="$NEW_MINOR_TAG_SHA" \
-              -F force=true
+              -F force=true 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to update major version tag $NEW_MAJOR_VERSION"
+              echo "Error: $MAJOR_TAG_RESULT"
+              send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "tag_failed" "$COMMIT_URL" "$NEW_MAJOR_VERSION" "$NEW_MINOR_VERSION" "" "Failed to update major tag $NEW_MAJOR_VERSION"
+              echo "❌ Major tag update failed" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi
             echo "✅ Major version tag $NEW_MAJOR_VERSION updated"
           fi
           # Create or update the GitHub release for the major version tag
@@ -585,13 +634,20 @@ runs:
           RELEASE_JSON=$(gh api repos/"$PUBLIC_REPO"/releases 2>/dev/null | \
           jq --arg tag "$NEW_MAJOR_VERSION" '[.[] | select(.tag_name == $tag)] | first // {}')
           RELEASE_ID=$(printf '%s\n' "$RELEASE_JSON" | jq -r '.id // empty')
-        
+          
           if [ "${{ inputs.major-bump }}" = "true" ] || [ -z "$RELEASE_ID" ]; then
             echo "🚀 Creating release $NEW_MAJOR_VERSION..."
-            gh api repos/"$PUBLIC_REPO"/releases -X POST \
-            -f tag_name="$NEW_MAJOR_VERSION" \
-            -f name="$NEW_MAJOR_VERSION" \
-            -f body="$COMMIT_MSG"
+            RELEASE_RESULT=$(gh api repos/"$PUBLIC_REPO"/releases -X POST \
+              -f tag_name="$NEW_MAJOR_VERSION" \
+              -f name="$NEW_MAJOR_VERSION" \
+              -f body="$COMMIT_MSG" 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to create release $NEW_MAJOR_VERSION"
+              echo "Error: $RELEASE_RESULT"
+              send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "release_failed" "$COMMIT_URL" "$NEW_MAJOR_VERSION" "$NEW_MINOR_VERSION" "$NEW_MAJOR_VERSION" "Failed to create release: $RELEASE_RESULT"
+              echo "❌ Release creation failed" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi
             echo "✅ Release $NEW_MAJOR_VERSION  created"
           else
             echo "🔄 Updating release $NEW_MAJOR_VERSION (prepending new notes)..."
@@ -601,15 +657,22 @@ runs:
             else
               UPDATED_NOTES="$COMMIT_MSG"
             fi
-            gh api repos/"$PUBLIC_REPO"/releases/"$RELEASE_ID" -X PATCH \
-            -f tag_name="$NEW_MAJOR_VERSION" \
-            -f body="$UPDATED_NOTES"
+            RELEASE_RESULT=$(gh api repos/"$PUBLIC_REPO"/releases/"$RELEASE_ID" -X PATCH \
+              -f tag_name="$NEW_MAJOR_VERSION" \
+              -f body="$UPDATED_NOTES" 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to update release $NEW_MAJOR_VERSION"
+              echo "Error: $RELEASE_RESULT"
+              send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "release_failed" "$COMMIT_URL" "$NEW_MAJOR_VERSION" "$NEW_MINOR_VERSION" "$NEW_MAJOR_VERSION" "Failed to update release: $RELEASE_RESULT"
+              echo "❌ Release update failed" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
+              continue
+            fi
             echo "✅  Release $NEW_MAJOR_VERSION updated"
           fi
 
           # Update evidence status with tag info
           echo "✅ Committed ($NEW_MINOR_VERSION, $NEW_MAJOR_VERSION) Released version ($NEW_MAJOR_VERSION)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
-          send_slack_notification $ACTION_NAME $PUBLIC_REPO $COMMIT_URL $NEW_MAJOR_VERSION $NEW_MAJOR_VERSION $NEW_MAJOR_VERSION
+          send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "success" "$COMMIT_URL" "$NEW_MAJOR_VERSION" "$NEW_MINOR_VERSION" "$NEW_MAJOR_VERSION" ""
           done  # for PUBLIC_REPO
         done  # for ACTION_NAME
         
