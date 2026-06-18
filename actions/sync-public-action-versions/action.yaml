@@ -22,6 +22,15 @@ inputs:
     required: false
     default: "false"
     description: The path to the action_artifacts.json file containing the updated action versions
+  workflow-url:
+    required: false
+    description: The Url of the workflow
+  slack-channel-id:
+    required: false
+    description: Slack channel ID to send notifications
+  slack-bot-token:
+    required: false
+    description: Slack bot token for authentication
 outputs:
   evidence-report:
     description: Markdown formatted evidence report of all changes (commit-based)
@@ -35,6 +44,61 @@ runs:
       uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/containers/container-gh-cli-plus-gh-token:0.0.6
       run: |
         set -e
+
+          # Function to send Slack notification using curl
+          send_slack_notification() {
+            local action_name="$1"
+            local repo_name="$2"
+            local commit_url="${3:-}"
+            local major_tag_version="${4:-}"
+            local minor_tag_version="${5:-}"
+            local release_version="${6:-}"
+
+            # Skip if Slack not configured
+            if [ -z "${{ inputs.slack-channel-id }}" ] || [ -z "${{ inputs.slack-bot-token }}" ]; then
+              return 0
+            fi
+
+            # Build the Slack message based on status
+            local emoji=":white_check_mark:"
+            local status_text="Successfully synced"
+            local details="Repository: \`${repo_name}\`\\nMajor Version: \`${major_tag_version}\`\\nMinor Version: \`${minor_tag_version}\`\\nRelease Version: \`${release_version}\`\\n<${commit_url}|View Commit>"
+
+            local slack_text="${emoji} *${status_text} \\\`${action_name}\\\`*\\n${details}"
+
+            # Build JSON payload for Slack API
+            local payload=$(cat <<EOF
+          {
+            "channel": "${{ inputs.slack-channel-id }}",
+            "text": "Public Action Sync: ${action_name}",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "${slack_text}"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "<${{ inputs.workflow-url }}|View Workflow>"
+                  }
+                ]
+              }
+            ]
+          }
+            EOF
+            )
+        
+            # Send to Slack using curl
+            curl -s -X POST "https://slack.com/api/chat.postMessage" \
+            -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$payload" > /dev/null 2>&1 || echo "⚠️   Failed to send Slack notification"
+          }
 
         EVIDENCE_FILE="/tmp/evidence_report.md"
         EVIDENCE_DATA_DIR="/tmp/evidence_data"
@@ -267,7 +331,7 @@ runs:
               break
             fi
           done
-
+        
           if [ -z "$ACTION_FILE_PATH" ]; then
             echo "⚠️  ERROR: Neither action.yml nor action.yaml found in $PUBLIC_REPO"
             echo "⚠️  This action may use a different structure. Manual update required."
@@ -275,17 +339,17 @@ runs:
             echo "❌ No action file found" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+        
           # Get current file content and SHA
           ACTION_FILE_CONTENT=$(gh api repos/"$PUBLIC_REPO"/contents/"$ACTION_FILE_PATH"'?ref'="$DEFAULT_BRANCH")
           CURRENT_FILE_SHA=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.sha')
           CURRENT_CONTENT=$(printf '%s\n' "$ACTION_FILE_CONTENT" | jq -r '.content' | base64 -d)
-
+        
           # Extract current image version - match action name in image path
           # Look for docker://*/actions/${ACTION_NAME}: pattern
           IMAGE_PATTERN="actions/${ACTION_NAME}:"
           CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E "docker://.*${IMAGE_PATTERN}" | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
-
+        
           # If not found, try without -actions suffix (e.g., plugin-blackduck-sca)
           if [ -z "$CURRENT_IMAGE" ]; then
             ALT_ACTION_NAME=$(echo "$ACTION_NAME" | sed 's/-actions$//')
@@ -295,7 +359,7 @@ runs:
               IMAGE_PATTERN="$ALT_IMAGE_PATTERN"
             fi
           fi
-
+        
           # If still not found, check if it's a Dockerfile-based action
           if [ -z "$CURRENT_IMAGE" ]; then
             DOCKERFILE_CHECK=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -i "Dockerfile" | head -1)
@@ -306,7 +370,7 @@ runs:
               echo "⚠️ Dockerfile-based (skipped)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
               continue
             fi
-
+        
             # Check for any docker:// image (fallback for non-standard naming)
             CURRENT_IMAGE=$(echo "$CURRENT_CONTENT" | grep -E '^\s*(image|uses):' | grep -E 'docker://' | head -1 | sed -E 's/^\s*(image|uses):\s*//' | tr -d '"' | tr -d "'" | xargs)
             if [ -z "$CURRENT_IMAGE" ]; then
@@ -325,13 +389,13 @@ runs:
               continue
             fi
           fi
-
+        
           echo "📸 Current image: $CURRENT_IMAGE"
-
+        
           # Extract current version from image
           CURRENT_VERSION=$(echo "$CURRENT_IMAGE" | grep -oE '[^:]+$' | xargs)
           echo "   Current version: $CURRENT_VERSION"
-
+        
           # Check if already up-to-date BEFORE building new image
           if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
             echo "✅ Image is already at version $NEW_VERSION. No update needed."
@@ -339,7 +403,7 @@ runs:
             echo "✅ Already up-to-date" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+        
           # Determine the new image path
           if echo "$CURRENT_IMAGE" | grep -q "^docker://"; then
             # Extract ECR registry path from current image
@@ -352,7 +416,7 @@ runs:
             echo "❌ Unexpected image format" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
             continue
           fi
-
+        
           echo "🆕 New image: $NEW_IMAGE"
 
           # Update the image in action file - use IMAGE_PATTERN for precise matching
@@ -474,7 +538,7 @@ runs:
           RELEASE_JSON=$(gh api repos/"$PUBLIC_REPO"/releases 2>/dev/null | \
           jq --arg tag "$NEW_MAJOR_VERSION" '[.[] | select(.tag_name == $tag)] | first // {}')
           RELEASE_ID=$(printf '%s\n' "$RELEASE_JSON" | jq -r '.id // empty')
-          
+        
           if [ "${{ inputs.major-bump }}" = "true" ] || [ -z "$RELEASE_ID" ]; then
             echo "🚀 Creating release $NEW_MAJOR_VERSION..."
             gh api repos/"$PUBLIC_REPO"/releases -X POST \
@@ -498,7 +562,7 @@ runs:
 
           # Update evidence status with tag info
           echo "✅ Committed ($NEW_MINOR_VERSION, $NEW_MAJOR_VERSION) Released version ($NEW_MAJOR_VERSION)" > "$EVIDENCE_DATA_DIR/${ACTION_NAME}.status"
-
+          send_slack_notification $ACTION_NAME $PUBLIC_REPO $COMMIT_URL $NEW_MAJOR_VERSION $NEW_MAJOR_VERSION $NEW_MAJOR_VERSION
           done  # for PUBLIC_REPO
         done  # for ACTION_NAME
         

@@ -93,7 +93,10 @@ jobs:
           cloudbees-io-installation-id: ${{ vars.cloudbees_io_installation_id }}
           cloudbees-io-gha-installation-id: ${{ vars.cloudbees_io_gha_installation_id }}
           private-key-b64: ${{ secrets.cloudbees_platform_gh_app_key_b64 }}
-          
+          major-bump: ${{ steps.check-changes.outputs.major-bump }}
+          workflow-url: ${{ steps.workflow_url.outputs.url }}
+          slack-channel-id: C05REUUAC1G
+          slack-bot-token: ${{ secrets.SAAS_SRE_SLACK_BOT_TOKEN }}
       - name: Publish workflow evidence
         uses: cloudbees-io/publish-evidence-item@v1
         with:
