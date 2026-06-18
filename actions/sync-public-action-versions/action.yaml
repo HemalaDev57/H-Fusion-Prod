@@ -93,13 +93,58 @@ runs:
                     ]
                   }
                 ]
-              }')
+              }' 2>&1)
 
-            # Send to Slack using curl
-            curl -s -X POST "https://slack.com/api/chat.postMessage" \
-            -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
-            -H "Content-Type: application/json; charset=utf-8" \
-            -d "$payload" > /dev/null 2>&1 || echo "⚠️   Failed to send Slack notification"
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to build JSON payload with jq"
+              echo "Error: $payload"
+              return 1
+            fi
+
+            echo "📤 Payload preview (first 200 chars):"
+            echo "$payload" | head -c 200
+            echo "..."
+
+            # Send to Slack using curl and capture response
+            echo "🔍 Sending to Slack API..."
+            local response=$(curl -s -w "\n%{http_code}" -X POST "https://slack.com/api/chat.postMessage" \
+              -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              -d "$payload" 2>&1)
+
+            local curl_exit=$?
+
+            # Extract HTTP code (last line) and response body (everything else)
+            local http_code=$(echo "$response" | tail -n1)
+            local response_body=$(echo "$response" | head -n-1)
+
+            echo "📊 HTTP Status Code: $http_code"
+            echo "📋 Response Body: $response_body"
+
+            if [ $curl_exit -ne 0 ]; then
+              echo "❌ Curl command failed with exit code: $curl_exit"
+              return 1
+            fi
+
+            if [ "$http_code" != "200" ]; then
+              echo "❌ HTTP request failed with status code: $http_code"
+              return 1
+            fi
+
+            # Check if Slack API returned ok: true
+            local slack_ok=$(echo "$response_body" | jq -r '.ok // false' 2>/dev/null)
+
+            if [ "$slack_ok" != "true" ]; then
+              echo "❌ Slack API returned error"
+              local slack_error=$(echo "$response_body" | jq -r '.error // "unknown"' 2>/dev/null)
+              echo "Error type: $slack_error"
+              echo "Full response: $response_body"
+              return 1
+            fi
+
+            echo "✅ Slack notification sent successfully"
+            return 0
+
           }
 
         EVIDENCE_FILE="/tmp/evidence_report.md"
