@@ -75,7 +75,7 @@ jobs:
             "${{ cloudbees.api.url }}/v1/organizations/${{ cloudbees.org.id }}/services/${{ cloudbees.component.id }}/automations?all=true&pagination.pageLength=1000&fileName=$WORKFLOW_FILE_NAME")
 
           WORKFLOW_ID=$(echo "$AUTOMATIONS" | jq -r --arg branch "${{ cloudbees.scm.branch }}" '
-            .automations[]? | select(.target.type == "RESOURCE_TYPE_BRANCH" and .target.name == $branch and .fileName == "deploy-platform-services.yaml") | .id
+            .automations[]? | select(.target.type == "RESOURCE_TYPE_BRANCH" and .target.name == $branch and .fileName == "promote-action-artifacts-main.yaml") | .id
           ' 2>/dev/null | head -1)
 
           WORKFLOW_URL="https://cloudbees.io/cloudbees/${{ cloudbees.org.id }}/components/${{ cloudbees.component.id }}/runs/${WORKFLOW_ID}/${{ cloudbees.run_id }}/${{ cloudbees.run_attempt }}/logs?componentId=${{ cloudbees.component.id }}&workflowId=${WORKFLOW_ID}&organizationId=${{ cloudbees.org.id }}&job=promote-actions-main"
