@@ -576,7 +576,7 @@ runs:
             -f object="$COMMIT_SHA" \
             -f type="commit" \
             --jq '.sha' 2>&1)
-          if [ $? -eq 0 ] || [ -z "$NEW_MINOR_TAG_SHA" ] || [ "$NEW_MINOR_TAG_SHA" = "null" ]; then
+          if [ $? -ne 0 ] || [ -z "$NEW_MINOR_TAG_SHA" ] || [ "$NEW_MINOR_TAG_SHA" = "null" ]; then
             echo "❌ Failed to create annotated tag $NEW_MINOR_VERSION"
             echo "Error: $NEW_MINOR_TAG_SHA"
             send_slack_notification "$ACTION_NAME" "$PUBLIC_REPO" "tag_failed" "$COMMIT_URL" "" "" "" "Failed to create annotated tag $NEW_MINOR_VERSION"
