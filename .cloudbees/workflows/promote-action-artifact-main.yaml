@@ -62,6 +62,26 @@ jobs:
             echo -n "false" > $CLOUDBEES_OUTPUTS/major-bump
           fi
 
+      - name: Generate workflow URL
+        uses: docker://alpine/curl:latest
+        id: workflow_url
+        if: ${{ steps.check-changes.outputs.changed == 'true' && steps.check-labels.outputs.skip-release != 'true' }}
+        run: |
+          apk add --no-cache jq > /dev/null 2>&1
+
+          # Fetch workflow ID from API
+          WORKFLOW_FILE_NAME="promote-action-artifacts-main.yaml"
+          AUTOMATIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.CBP_API_PAT_RO }}" \
+            "${{ cloudbees.api.url }}/v1/organizations/${{ cloudbees.org.id }}/services/${{ cloudbees.component.id }}/automations?all=true&pagination.pageLength=1000&fileName=$WORKFLOW_FILE_NAME")
+
+          WORKFLOW_ID=$(echo "$AUTOMATIONS" | jq -r --arg branch "${{ cloudbees.scm.branch }}" '
+            .automations[]? | select(.target.type == "RESOURCE_TYPE_BRANCH" and .target.name == $branch and .fileName == "deploy-platform-services.yaml") | .id
+          ' 2>/dev/null | head -1)
+
+          WORKFLOW_URL="https://cloudbees.io/cloudbees/${{ cloudbees.org.id }}/components/${{ cloudbees.component.id }}/runs/${WORKFLOW_ID}/${{ cloudbees.run_id }}/${{ cloudbees.run_attempt }}/logs?componentId=${{ cloudbees.component.id }}&workflowId=${WORKFLOW_ID}&organizationId=${{ cloudbees.org.id }}&job=deploy-saas"
+          echo $WORKFLOW_URL
+          echo "$WORKFLOW_URL" | tr -d '\n' > $CLOUDBEES_OUTPUTS/url
+
       - name: Sync action versions to public repos
         id: sync-actions
         if: ${{ steps.check-labels.outputs.skip-release != 'true' }}
