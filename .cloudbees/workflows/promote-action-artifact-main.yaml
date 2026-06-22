@@ -96,7 +96,7 @@ jobs:
           major-bump: ${{ steps.check-labels.outputs.major-bump }}
           workflow-url: ${{ steps.workflow_url.outputs.url }}
           slack-channel-id: C05REUUAC1G
-          slack-bot-token: ${{ secrets.SAAS_SRE_SLACK_BOT_TOKEN }}
+          slack-bot-token: ${{ secrets.UNIFY_ACTION_SLACK_BOT }}
       - name: Publish workflow evidence
         uses: cloudbees-io/publish-evidence-item@v1
         with:
