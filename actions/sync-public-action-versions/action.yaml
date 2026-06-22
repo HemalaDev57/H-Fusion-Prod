@@ -70,20 +70,20 @@ runs:
               "success")
                   emoji=":white_check_mark:"
                   status_text="Successfully synced"
-                  details="Repository: \`${repo_name}\`\\nMajor Version: \`${major_tag_version}\`\\nMinor Version: \`${minor_tag_version}\`\\nRelease Version: \`${release_version}\`\\n<${commit_url}|View Commit>"
+                  local details="Repository: \`${repo_name}\`"$'\n'"Major Version: \`${major_tag_version}\`"$'\n'"Minor Version: \`${minor_tag_version}\`"$'\n'"Release Version: \`${release_version}\`"$'\n'"<${commit_url}|View Commit>"
                   ;;
                 "tag_failed")
                   emoji=":x:"
                   status_text="Tag creation failed"
-                  details="Repository: \`${repo_name}\`\\n<${commit_url}|View Commit>\\nError: ${error_message}"
+                  details="Repository: \`${repo_name}\`"$'\n<${commit_url}|View Commit>\\nError: ${error_message}"
                   ;;
                 "release_failed")
                   emoji=":x:"
                   status_text="Release creation failed"
-                  details="Repository: \`${repo_name}\`\\nTags: \`${major_tag_version}\`, \`${minor_tag_version}\`\\n<${commit_url}|View Commit>\\nError: ${error_message}"
+                  details="Repository: \`${repo_name}\`"$'\nTags: \`${major_tag_version}\`, \`${minor_tag_version}\`"$'\n<${commit_url}|View Commit>\\nError: ${error_message}"
                     ;;
               esac
-            local slack_text="${emoji} *${status_text} \\\`${action_name}\\\`*\\n${details}"
+            local slack_text="${emoji} *${status_text} \`${action_name}\`*"$'\n'"${details}"
 
             # Build JSON payload for Slack API
             local payload=$(jq -n \
